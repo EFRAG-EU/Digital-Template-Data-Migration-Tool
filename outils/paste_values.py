@@ -1,6 +1,7 @@
 import pandas as pd
 from openpyxl.utils.cell import range_boundaries
 
+
 def paste_values(pyxl, df, NR=None):
     """ Paste values from a DataFrame column into an openpyxl workbook"""
     
@@ -16,52 +17,35 @@ def paste_values(pyxl, df, NR=None):
         merged_loc = pd.concat([merged_loc, pd.DataFrame({sheet: merged_list})], axis=1)
 
     add_checkbox = ["SiteLocatedInABiodiversitySensitiveArea","SiteLocatedNearABiodiversitySensitiveArea"]
-
+    # yellow_checkbox = ["CountryOfEmploymentContractAxis"].values
+    # if NR is "CountryOfEmploymentContractAxis":
     for i in range(len(df)):
 
-        df_values = df["cell_values"][i]
-        df_shapes = df["cell_shapes"][i]
-
         sheet = pyxl[df["sheets"][i]]
+        rng = sheet[df["cell_ranges"][i]]
+        shape = df["cell_shapes"][i]
+        value = df["cell_values"][i]
 
-        if len(df_shapes) == 2:
 
-            if df_values is not None:
-                sheet[df["cell_ranges"][i]].value = df_values[0][0]
+        if shape.isonecell():
+            rng.value = value.topleft() # when it's one cell, paste topleft 
+            
         else:
 
-            tuple_to_check = (df_shapes[0], df_shapes[1]) 
+            tuple_to_check = (shape.left(), shape.top()) 
 
-            if df_values is not None: # avoiding formulas
+            if value.values() is not None: # avoiding formulas
 
                 if tuple_to_check in merged_loc[df["sheets"][i]].values.tolist(): # merged cells check
 
-                    for j in range(len(df_values)):
-                        df_values[j] = [df_values[j][0]] # keeping only the first value of each row
-
-                    if len(df_values) == (df_shapes[3]+1 - df_shapes[1]): # enlarged ranges check
-                        for row in range(df_shapes[1], df_shapes[3] + 1):
-                            sheet.cell(row=row, column=df_shapes[0]).value = df_values[row - df_shapes[1]][0]
-                    else:
-                        for j in range(df_shapes[3]+1 - df_shapes[1] - len(df_values)):
-                            df_values.append([None])
-                        for row in range(df_shapes[1], df_shapes[3] + 1):
-                            sheet.cell(row=row, column=df_shapes[0]).value = df_values[row - df_shapes[1]][0]
-
+                    value.first_element_row() # keeping only the first value of each row
+                    value.enlarged_range_correction(shape) # enlarged ranges check
+                    value.paste(sheet, shape)
+                                   
                 else:
 
-                    if len(df_values) == (df_shapes[3]+1 - df_shapes[1]):
-                        for row in range(df_shapes[1], df_shapes[3] + 1):
-                            for col in range(df_shapes[0], df_shapes[2] + 1):
-                                sheet.cell(row=row, column=col).value = df_values[row - df_shapes[1]][col - df_shapes[0]]
-                    else:
-                        for j in range(df_shapes[3]+1 - df_shapes[1] - len(df_values)):
-                            df_values.append([None])
-                        if NR is not None: # only for name ranges (not for missing NRs)
-                            if df["name_ranges"][i] in add_checkbox:
-                                for j in range(len(df_values)):
-                                    if df_values[j][0] is None:
-                                        df_values[j][0] = False
-                        for row in range(df_shapes[1], df_shapes[3] + 1):
-                            for col in range(df_shapes[0], df_shapes[2] + 1):
-                                sheet.cell(row=row, column=col).value = df_values[row - df_shapes[1]][col - df_shapes[0]]
+                    value.enlarged_range_correction(shape) # enlarged ranges check
+                    if NR is not None:
+                        if df["name_ranges"][i] in add_checkbox:
+                            value.add_checkboxes() # add checkboxes for the specific NRs (see above)
+                    value.paste(sheet, shape)

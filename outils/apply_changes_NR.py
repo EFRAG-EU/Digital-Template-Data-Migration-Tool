@@ -1,5 +1,7 @@
 import pandas as pd
 
+from outils.classes import values
+
 def apply_changes_NR(df, version_cell, version_cell_new):
 
     dict_of_changes_NR = {
@@ -23,3 +25,14 @@ def apply_changes_NR(df, version_cell, version_cell_new):
     df = df.drop(columns=["name_ranges_new"])
 
     return df
+
+def change_wastes(df, mapping):
+    old_wastes = df.loc[df["name_ranges"] == "TypeOfWasteAxis", "cell_values"].values[0].first_element_row(double_list=False)
+    new_wastes= []
+    for i in old_wastes:
+        if i is not None:
+            if pd.isna(mapping.loc[mapping["old"] == i, "new"].values[0]):
+                new_wastes.append(["Waste category not present in new Regulation. Please, see https://eur-lex.europa.eu/legal-content/EN/TXT/PDF/?uri=CELEX:32014D0955"])
+            else:
+                new_wastes.append([mapping.loc[mapping["old"] == i, "new"].values[0]])
+    df.loc[df["name_ranges"] == "TypeOfWasteAxis", "cell_values"] = values(new_wastes)
