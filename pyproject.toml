@@ -1,0 +1,20 @@
+[project]
+name = "migration_tool"
+version = "0.1.0"
+description = "Migration tool package extracted from migration_function.py"
+authors = [ { name = "EFRAG-EU" } ]
+readme = "README.md"
+license = { text = "MIT" }
+dependencies = [
+    "openpyxl",
+    "pandas"
+]
+requires-python = ">=3.11"
+
+[tool.hatch.build.targets.wheel]
+packages = ["migration_tool"]
+ 
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+

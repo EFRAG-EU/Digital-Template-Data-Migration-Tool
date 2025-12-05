@@ -1,74 +1,74 @@
 from openpyxl import load_workbook
 import pandas as pd
-from tkinter import Tk, filedialog
 import warnings
 import time
+import os
+from pathlib import Path
 
-from outils.check_template_fill import check_template_fill
 from outils.apply_changes_NR import apply_changes_NR, change_wastes
 from outils.clean_NR_with_no_data import clean_NR_with_no_data
 from outils.paste_values import paste_values
 from outils.access_NR_tables import access_NR_table, access_missingNR_table
 from outils.copy_values import copy_values
 from outils.classes import values
-from pickles.missingNR_df import missingNR_df
 
-mapping_wastes = pd.read_pickle("pickles/Mapping_wastes.pkl")
+# Resolve paths relative to this script file so pickles are found regardless of current working directory
+_base_dir = Path(__file__).resolve().parent
+_mapping_dir = _base_dir / "outils"
+
+mapping_wastes = pd.read_pickle(str(_mapping_dir / "Mapping_wastes.pkl"))
+missingNR_df = pd.read_pickle(str(_mapping_dir / "missingNR_df.pkl"))
 
 
 def tool(
-    file_path: str,
-    template_path: str = "Template/VSME-Digital-Template-1.1.1.xlsx",
+    old_wb,
+    template_path: str | os.PathLike | None = None,
 ):
     """
-    Run the migration tool on the given Excel file_path. If file_path is None,
-    a file dialog will be shown to pick the file.
-
+    Run the migration tool on the given Excel file_path.
     Returns:
-        saved_path (str): path to the saved migrated template.
+        output_file (openpyxl.Workbook): new template with old data.
         elapsed (float): execution time in seconds.
-
-    Raises:
-        RuntimeError: on user cancellation or invalid template.
     """
+
+    if template_path is None:
+        template_path = _base_dir / "outils" / "VSME-Digital-Template-1.1.1.xlsx"
+    template_path = str(Path(template_path))
+
     start_time = time.time()
-
-    # Ask for file if not provided
-    if not file_path:
-        root = Tk()
-        root.withdraw()
-        file_path = filedialog.askopenfilename(
-            title="Select Your Old Template Version (with data, .xlsx format)",
-            filetypes=[("Excel Files", "*.xlsx")],
-        )
-        root.destroy()
-
-    if not file_path:
-        raise RuntimeError("No file selected.")
-
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore", category=UserWarning)
-        old_wb = load_workbook(file_path)
-        old_wb_values = load_workbook(file_path, data_only=True)
-
-    if not check_template_fill(old_wb_values):
-        raise RuntimeError("The selected file is not a FILLED vsme digital template.")
-
+    # load New (empty) template workbook
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", category=UserWarning)
         new_wb_empty = load_workbook(template_path)
 
-    version_cell = old_wb["Introduction"].cell(row=1, column=3).value
+    if not new_wb_empty:
+        print("Error: Could not load the new template workbook.")
+    else:
+        print("New template workbook loaded successfully.")
+
+    # load old workbook if a file path (str or PathLike) was provided, otherwise assume it's already a Workbook
+    if isinstance(old_wb, (str, os.PathLike)):
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", category=UserWarning)
+            old_wb_obj = load_workbook(old_wb)
+    elif old_wb is None:
+        raise ValueError("old_wb must be a file path or an openpyxl Workbook")
+    else:
+        # already a workbook-like object
+        old_wb_obj = old_wb
+
+    version_cell = old_wb_obj["Introduction"].cell(row=1, column=3).value
     version_cell_new = new_wb_empty["Introduction"].cell(row=1, column=3).value
 
-    df_old = access_NR_table(old_wb.defined_names)
+    df_old = access_NR_table(old_wb_obj.defined_names)
+
     df_new = access_NR_table(new_wb_empty.defined_names)
 
     missingNR_df_old = access_missingNR_table(missingNR_df, version_cell)
     missingNR_df_new = access_missingNR_table(missingNR_df, version_cell_new)
 
-    df_old_wv = copy_values(old_wb, df_old, key="name_ranges")
-    missingNR_df_old_values = copy_values(old_wb, missingNR_df_old, key=None)
+    df_old_wv = copy_values(old_wb_obj, df_old, key="name_ranges")
+    missingNR_df_old_values = copy_values(old_wb_obj, missingNR_df_old, key=None)
 
     if version_cell == "1.0.0":
         for position in [0, 1, 6]:
@@ -107,14 +107,13 @@ def tool(
     paste_values(new_wb_empty, missingNR_df_new_wv)
     paste_values(new_wb_empty, df_new_wv, NR=True)
 
-    saved_path = f"Template/result_from_{version_cell}.xlsx"
-    new_wb_empty.save(saved_path)
-
     elapsed = time.time() - start_time
     return new_wb_empty, elapsed
 
 
-tool(
-    "Template/VSME-Digital-Template-Sample-1.0.0.xlsx",
-    "Template/VSME-Digital-Template-1.1.1.xlsx",
-)
+if __name__ == "__main__":
+    # simple runner when executed as a script
+    tool(
+        "Template/VSME-Digital-Template-Sample-1.0.0.xlsx",
+        "Template/VSME-Digital-Template-1.1.1.xlsx",
+    )
