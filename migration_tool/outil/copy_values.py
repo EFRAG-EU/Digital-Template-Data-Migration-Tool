@@ -1,12 +1,12 @@
-from outils.classes import values
+from outil.classes import values
+
 
 def copy_values(pyxl, df, key=None):
-    """ Copy values from old workbook to new workbook based on name ranges and cell shapes, and return a df with key and cell values"""
+    """Copy values from old workbook to new workbook based on name ranges and cell shapes, and return a df with key and cell values"""
 
     cell_values = []
 
     for i in range(len(df)):
-
         sheet = pyxl[df["sheets"][i]]
         shape = df["cell_shapes"][i]
         rng = df["cell_ranges"][i]

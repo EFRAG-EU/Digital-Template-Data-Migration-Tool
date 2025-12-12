@@ -1,30 +1,30 @@
-from openpyxl import load_workbook
+from openpyxl import load_workbook, Workbook
 import pandas as pd
 import warnings
 import time
 import os
 from pathlib import Path
 
-from migration_tool.outils.apply_changes_NR import apply_changes_NR, change_wastes
-from migration_tool.outils.clean_NR_with_no_data import clean_NR_with_no_data
-from migration_tool.outils.paste_values import paste_values
-from migration_tool.outils.access_NR_tables import (
+from outil.apply_changes_NR import apply_changes_NR, change_wastes
+from outil.clean_NR_with_no_data import clean_NR_with_no_data
+from outil.paste_values import paste_values
+from outil.access_NR_tables import (
     access_NR_table,
     access_missingNR_table,
 )
-from migration_tool.outils.copy_values import copy_values
-from migration_tool.outils.classes import values
+from outil.copy_values import copy_values
+from outil.classes import values
 
 # Resolve paths relative to this script file so pickles are found regardless of current working directory
 _base_dir = Path(__file__).resolve().parent
-_mapping_dir = _base_dir / "outils"
+_mapping_dir = _base_dir / "outil"
 
 mapping_wastes = pd.read_pickle(str(_mapping_dir / "Mapping_wastes.pkl"))
 missingNR_df = pd.read_pickle(str(_mapping_dir / "missingNR_df.pkl"))
 
 
 def tool(
-    old_wb,
+    old_wb: Workbook,
     template_path: str | os.PathLike | None = None,
 ):
     """
@@ -35,7 +35,7 @@ def tool(
     """
 
     if template_path is None:
-        template_path = _base_dir / "outils" / "VSME-Digital-Template-1.1.1.xlsx"
+        template_path = _base_dir / "outil" / "VSME-Digital-Template-1.1.1.xlsx"
     template_path = str(Path(template_path))
 
     start_time = time.time()
