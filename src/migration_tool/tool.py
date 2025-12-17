@@ -21,8 +21,12 @@ from .classes import values
 def tool(old_wb: Workbook | str | os.PathLike):
     start_time = time.time()
 
-    mapping_wastes = files("migration_tool.data").joinpath("Mapping_wastes.pkl").open()
-    missingNR_df = files("migration_tool.data").joinpath("missingNR_df.pkl").open()
+    mapping_wastes = pd.read_pickle(
+        files("migration_tool.data").joinpath("Mapping_wastes.pkl")
+    )
+    missingNR_df = pd.read_pickle(
+        files("migration_tool.data").joinpath("missingNR_df.pkl")
+    )
 
     # load old filled-out Template and (newest) empty Template
     if isinstance(old_wb, (str, os.PathLike)):
@@ -99,6 +103,30 @@ def tool(old_wb: Workbook | str | os.PathLike):
     return new_wb_empty, elapsed, flatten_sublists_lc(list_migrationissues)
 
 
-# if __name__ == "__main__":
-#     # simple runner when executed as a script
-#     tool("Template/VSME-Digital-Template-Sample-1.0.0.xlsx")
+if __name__ == "__main__":
+    import sys
+    from pathlib import Path
+
+    # Determine repo root (parent of src/ when running from src/)
+    # This works whether running from src/ or if installed as package
+    cwd = Path.cwd()
+    if cwd.name == "src":
+        repo_root = cwd.parent
+    else:
+        repo_root = cwd
+
+    # Accept command line argument or use default
+    if len(sys.argv) > 1:
+        file_path = sys.argv[1]
+    else:
+        file_path = str(
+            repo_root / "Template" / "VSME-Digital-Template-Sample-1.0.0.xlsx"
+        )
+
+    a, b, c = tool(file_path)
+
+    print(f"Migration completed in {b:.2f} seconds")
+    if c:
+        print(f"Migration issues: {c}")
+    else:
+        print("No migration issues found")
