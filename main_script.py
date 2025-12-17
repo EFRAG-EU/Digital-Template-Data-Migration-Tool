@@ -4,7 +4,6 @@ from tkinter import Tk, filedialog
 import warnings
 import time
 
-from outils.check_template_fill import check_template_fill
 from outils.apply_changes_NR import apply_changes_NR, change_wastes
 from outils.clean_NR_with_no_data import clean_NR_with_no_data
 from outils.paste_values import paste_values
@@ -14,6 +13,14 @@ from outils.classes import values
 from pickles.missingNR_df import missingNR_df
 
 mapping_wastes = pd.read_pickle("pickles/Mapping_wastes.pkl")
+
+list_migrationissues = []
+
+
+def flatten_sublists_lc(nested_list):
+    return [
+        item for sublist in nested_list for item in sublist
+    ]  # to later flatten list of issues
 
 
 def tool(
@@ -49,10 +56,6 @@ def tool(
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", category=UserWarning)
         old_wb = load_workbook(file_path)
-        old_wb_values = load_workbook(file_path, data_only=True)
-
-    if not check_template_fill(old_wb_values):
-        raise RuntimeError("The selected file is not a FILLED vsme digital template.")
 
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", category=UserWarning)
@@ -77,7 +80,7 @@ def tool(
     df_old_tomerge = apply_changes_NR(df_old_wv, version_cell, version_cell_new)
     df_old_tomerge = clean_NR_with_no_data(df_old_tomerge)
     if version_cell in ["1.0.0", "1.0.1", "1.1.0"]:
-        change_wastes(df_old_tomerge, mapping_wastes)
+        list_migrationissues.append(change_wastes(df_old_tomerge, mapping_wastes))
 
     df_new_wv = df_new.merge(df_old_tomerge)
     missingNR_df_new_wv = pd.concat([missingNR_df_new, missingNR_df_old_values], axis=1)
@@ -91,7 +94,7 @@ def tool(
             .values[0]
             .count_uniques()
         )
-        if length > 2:
+        if length > 2:  # ignore PyLance warning, no issue at runtime
             missingNR_df_new_wv.loc[
                 (missingNR_df_new_wv["sheets"] == "Social Disclosures")
                 & (missingNR_df_new_wv["cell_ranges"] == "$E$27"),
@@ -111,7 +114,8 @@ def tool(
     new_wb_empty.save(saved_path)
 
     elapsed = time.time() - start_time
-    return new_wb_empty, elapsed
+
+    return new_wb_empty, elapsed, flatten_sublists_lc(list_migrationissues)
 
 
 tool(
