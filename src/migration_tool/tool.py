@@ -3,62 +3,45 @@ import pandas as pd
 import warnings
 import time
 import os
-from pathlib import Path
+from importlib.resources import files, as_file
 
-from outil.apply_changes_NR import apply_changes_NR, change_wastes
-from outil.clean_NR_with_no_data import clean_NR_with_no_data
-from outil.paste_values import paste_values
-from outil.access_NR_tables import (
+from .outils import (
     access_NR_table,
     access_missingNR_table,
+    apply_changes_NR,
+    change_wastes,
+    clean_NR_with_no_data,
+    copy_values,
+    paste_values,
+    flatten_sublists_lc,
 )
-from outil.copy_values import copy_values
-from outil.classes import values
-
-# Resolve paths relative to this script file so pickles are found regardless of current working directory
-_base_dir = Path(__file__).resolve().parent
-_mapping_dir = _base_dir / "outil"
-
-mapping_wastes = pd.read_pickle(str(_mapping_dir / "Mapping_wastes.pkl"))
-missingNR_df = pd.read_pickle(str(_mapping_dir / "missingNR_df.pkl"))
+from .classes import values
 
 
-def tool(
-    old_wb: Workbook,
-    template_path: str | os.PathLike | None = None,
-):
-    """
-    Run the migration tool on the given Excel file_path.
-    Returns:
-        output_file (openpyxl.Workbook): new template with old data.
-        elapsed (float): execution time in seconds.
-    """
-
-    if template_path is None:
-        template_path = _base_dir / "outil" / "VSME-Digital-Template-1.1.1.xlsx"
-    template_path = str(Path(template_path))
-
+def tool(old_wb: Workbook | str | os.PathLike):
     start_time = time.time()
-    # load New (empty) template workbook
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore", category=UserWarning)
-        new_wb_empty = load_workbook(template_path)
 
-    if not new_wb_empty:
-        print("Error: Could not load the new template workbook.")
-    else:
-        print("New template workbook loaded successfully.")
+    mapping_wastes = files("migration_tool.data").joinpath("Mapping_wastes.pkl").open()
+    missingNR_df = files("migration_tool.data").joinpath("missingNR_df.pkl").open()
 
-    # load old workbook if a file path (str or PathLike) was provided, otherwise assume it's already a Workbook
+    # load old filled-out Template and (newest) empty Template
     if isinstance(old_wb, (str, os.PathLike)):
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", category=UserWarning)
-            old_wb_obj = load_workbook(old_wb)
+            old_wb_obj = load_workbook(old_wb, data_only=False)
+            with as_file(
+                files("migration_tool.data").joinpath(
+                    "VSME-Digital-Template-1.1.1.xlsx"
+                )
+            ) as path:
+                new_wb_empty = load_workbook(path, data_only=False)
     elif old_wb is None:
         raise ValueError("old_wb must be a file path or an openpyxl Workbook")
     else:
         # already a workbook-like object
         old_wb_obj = old_wb
+
+    list_migrationissues = []
 
     version_cell = old_wb_obj["Introduction"].cell(row=1, column=3).value
     version_cell_new = new_wb_empty["Introduction"].cell(row=1, column=3).value
@@ -80,7 +63,7 @@ def tool(
     df_old_tomerge = apply_changes_NR(df_old_wv, version_cell, version_cell_new)
     df_old_tomerge = clean_NR_with_no_data(df_old_tomerge)
     if version_cell in ["1.0.0", "1.0.1", "1.1.0"]:
-        change_wastes(df_old_tomerge, mapping_wastes)
+        list_migrationissues.append(change_wastes(df_old_tomerge, mapping_wastes))
 
     df_new_wv = df_new.merge(df_old_tomerge)
     missingNR_df_new_wv = pd.concat([missingNR_df_new, missingNR_df_old_values], axis=1)
@@ -94,7 +77,9 @@ def tool(
             .values[0]
             .count_uniques()
         )
-        if length > 2:
+        if (
+            length > 2
+        ):  # ignore PyLance warning for pandas dataframes, no issues at runtime
             missingNR_df_new_wv.loc[
                 (missingNR_df_new_wv["sheets"] == "Social Disclosures")
                 & (missingNR_df_new_wv["cell_ranges"] == "$E$27"),
@@ -111,12 +96,9 @@ def tool(
     paste_values(new_wb_empty, df_new_wv, NR=True)
 
     elapsed = time.time() - start_time
-    return new_wb_empty, elapsed
+    return new_wb_empty, elapsed, flatten_sublists_lc(list_migrationissues)
 
 
-if __name__ == "__main__":
-    # simple runner when executed as a script
-    tool(
-        "Template/VSME-Digital-Template-Sample-1.0.0.xlsx",
-        "Template/VSME-Digital-Template-1.1.1.xlsx",
-    )
+# if __name__ == "__main__":
+#     # simple runner when executed as a script
+#     tool("Template/VSME-Digital-Template-Sample-1.0.0.xlsx")

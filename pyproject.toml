@@ -1,6 +1,6 @@
 [project]
 name = "migration_tool"
-version = "0.1.0"
+version = "0.1.1"
 description = "Migration tool package extracted from migration_function.py"
 authors = [ { name = "EFRAG-EU" } ]
 readme = "README.md"
@@ -18,3 +18,5 @@ packages = ["migration_tool"]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
+[tool.hatch.build.targets.wheel.include]
+"my_package/data/*" = true
