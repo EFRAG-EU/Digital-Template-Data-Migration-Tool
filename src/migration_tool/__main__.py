@@ -18,7 +18,10 @@ def main():
         file_path = sys.argv[1]
     else:
         file_path = str(
-            repo_root / "Template" / "VSME-Digital-Template-Sample-1.0.0.xlsx"
+            repo_root
+            / "tests"
+            / "templates_samples"
+            / "VSME-Digital-Template-Sample-1.0.0.xlsx"
         )
 
     workbook, elapsed, issues = tool(file_path)

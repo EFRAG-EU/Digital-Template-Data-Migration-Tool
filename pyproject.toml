@@ -33,16 +33,11 @@ build-backend = "hatchling.build"
 # to show it;
 # & .venv/Scripts/python.exe -m pip show migration_tool
 
-
-# Run tool module directly (if it has a main guard) for testing:  
-# python -m migration_tool.tool
-# & .venv/Scripts/python.exe -m migration_tool.tool
-# the "-m" flag is needed!! Otherwise relative imports won't work
-
 # with a __main__ file, more pythonic way to run it:
 # python -m migration_tool
 # or
 # python -m migration_tool *path to xlsx file of choice as function argument*
+# the "-m" flag is needed!! Otherwise relative imports won't work
 
 # Run tests with the venv python
 # & .venv/Scripts/python.exe -m unittest -v

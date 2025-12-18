@@ -101,32 +101,3 @@ def tool(old_wb: Workbook | str | os.PathLike):
 
     elapsed = time.time() - start_time
     return new_wb_empty, elapsed, flatten_sublists_lc(list_migrationissues)
-
-
-if __name__ == "__main__":
-    import sys
-    from pathlib import Path
-
-    # Determine repo root (parent of src/ when running from src/)
-    # This works whether running from src/ or if installed as package
-    cwd = Path.cwd()
-    if cwd.name == "src":
-        repo_root = cwd.parent
-    else:
-        repo_root = cwd
-
-    # Accept command line argument or use default
-    if len(sys.argv) > 1:
-        file_path = sys.argv[1]
-    else:
-        file_path = str(
-            repo_root / "Template" / "VSME-Digital-Template-Sample-1.0.0.xlsx"
-        )
-
-    a, b, c = tool(file_path)
-
-    print(f"Migration completed in {b:.2f} seconds")
-    if c:
-        print(f"Migration issues: {c}")
-    else:
-        print("No migration issues found")
