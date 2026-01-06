@@ -28,22 +28,22 @@ def tool(old_wb: Workbook | str | os.PathLike):
         files("migration_tool.data").joinpath("missingNR_df.pkl")
     )
 
-    # load old filled-out Template and (newest) empty Template
+    # load old filled-out Template
     if isinstance(old_wb, (str, os.PathLike)):
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", category=UserWarning)
             old_wb_obj = load_workbook(old_wb, data_only=False)
-            with as_file(
-                files("migration_tool.data").joinpath(
-                    "VSME-Digital-Template-1.1.1.xlsx"
-                )
-            ) as path:
-                new_wb_empty = load_workbook(path, data_only=False)
     elif old_wb is None:
         raise ValueError("old_wb must be a file path or an openpyxl Workbook")
     else:
         # already a workbook-like object
         old_wb_obj = old_wb
+
+    # load new empty Template
+    with as_file(
+        files("migration_tool.data").joinpath("VSME-Digital-Template-1.1.1.xlsx")
+    ) as path:
+        new_wb_empty = load_workbook(path, data_only=False)
 
     list_migrationissues = []
 
