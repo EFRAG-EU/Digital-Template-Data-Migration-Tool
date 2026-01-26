@@ -66,7 +66,7 @@ def tool(old_wb: Workbook | str | os.PathLike):
 
     df_old_tomerge = apply_changes_NR(df_old_wv, version_cell, version_cell_new)
     df_old_tomerge = clean_NR_with_no_data(df_old_tomerge)
-    if version_cell in ["1.0.0", "1.0.1", "1.1.0"]:
+    if version_cell in ["1.0.0", "1.0.1"]:
         list_migrationissues.append(change_wastes(df_old_tomerge, mapping_wastes))
 
     df_new_wv = df_new.merge(df_old_tomerge)
