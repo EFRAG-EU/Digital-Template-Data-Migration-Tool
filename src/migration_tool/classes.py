@@ -1,12 +1,12 @@
 def check_formula(cell):
-    """ Check whether a cell contains a formula """
+    """Check whether a cell contains a formula"""
     if cell.data_type == "f":
         return True
     else:
         return False
 
+
 class shapes(object):
-    
     def __init__(self, tuple):
         if tuple is None:
             self.shape = None
@@ -18,30 +18,36 @@ class shapes(object):
     def left(self):
         if self.shape is not None:
             return self.shape[0]
+
     def top(self):
         if self.shape is not None:
             return self.shape[1]
+
     def right(self):
         if self.shape is not None:
             return self.shape[2]
+
     def bottom(self):
         if self.shape is not None:
             return self.shape[3]
+
     def rows(self):
         if self.shape is not None:
             return self.bottom() - self.top() + 1
+
     def cols(self):
         if self.shape is not None:
             return self.right() - self.left() + 1
-
 
     def isonecell(self):
         if self.rows() == 1 and self.cols() == 1:
             return True
         else:
             return False
-    
+
     def build_values(self, sheet):
+        if self.shape is None:
+            return None
 
         topleft = sheet.cell(row=self.top(), column=self.left())
 
@@ -71,14 +77,14 @@ class shapes(object):
 
             return list_values
 
-class values(object):
 
+class values(object):
     def __init__(self, list_of_lists):
         if list_of_lists is None:
             self.val = None
         else:
             self.val = list_of_lists
-            self.height = lambda: len(self.val) 
+            self.height = lambda: len(self.val)
             self.width = lambda: len(self.val[0])
 
     # Getter
@@ -106,7 +112,7 @@ class values(object):
             for i in range(shape.rows() - self.height()):
                 self.values().append([None])
 
-    def add_checkboxes(self): 
+    def add_checkboxes(self):
         for row in range(self.height()):
             if self.values()[row][0] is None:
                 self.values()[row][0] = False
@@ -124,10 +130,12 @@ class values(object):
             "September": 9,
             "October": 10,
             "November": 11,
-            "December": 12
+            "December": 12,
         }
         if self.values() is not None:
-            self.values()[1][0] = month_dict[self.values()[1][0]] # second row of each element (see the Template)]
+            self.values()[1][0] = month_dict[
+                self.values()[1][0]
+            ]  # second row of each element (see the Template)]
 
     def count_uniques(self):
         list = self.values()
@@ -136,8 +144,12 @@ class values(object):
     def paste(self, sheet, shape):
         if self.width() == 1:
             for row in range(shape.top(), shape.bottom() + 1):
-                sheet.cell(row= row, column=shape.left()).value = self.values()[row - shape.top()][0]
+                sheet.cell(row=row, column=shape.left()).value = self.values()[
+                    row - shape.top()
+                ][0]
         else:
             for row in range(shape.top(), shape.bottom() + 1):
                 for col in range(shape.left(), shape.right() + 1):
-                    sheet.cell(row= row, column=col).value = self.values()[row - shape.top()][col - shape.left()]
+                    sheet.cell(row=row, column=col).value = self.values()[
+                        row - shape.top()
+                    ][col - shape.left()]
