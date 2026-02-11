@@ -1,6 +1,7 @@
 import time
 import warnings
 from importlib.resources import as_file, files
+from io import BytesIO
 from pathlib import Path
 from typing import BinaryIO, TypeAlias
 
@@ -33,6 +34,15 @@ def load_workbook_quietly(
             module=r"openpyxl\.worksheet\._reader",
         )
         return openpyxl_load_workbook(file, data_only=data_only)
+
+
+def migrate_workbook_as_bytes(
+    old_wb: BinaryIO,
+) -> tuple[bytes, float, list[str]]:
+    new_wb, elapsed, issues = migrate_workbook(old_wb)
+    new_wb_bytes = BytesIO()
+    new_wb.save(new_wb_bytes)
+    return new_wb_bytes.getvalue(), elapsed, issues
 
 
 def migrate_workbook(
