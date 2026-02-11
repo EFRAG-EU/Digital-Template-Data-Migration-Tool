@@ -1,3 +1,3 @@
-from .tool import tool
+from .tool import migrate_workbook
 
-__all__ = ["tool"]
+__all__ = ["migrate_workbook"]

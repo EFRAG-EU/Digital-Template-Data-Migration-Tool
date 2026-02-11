@@ -2,7 +2,7 @@
 
 import sys
 from pathlib import Path
-from .tool import tool
+from .tool import migrate_workbook
 
 
 def main():
@@ -24,7 +24,7 @@ def main():
             / "VSME-Digital-Template-Sample-1.0.0.xlsx"
         )
 
-    workbook, elapsed, issues = tool(file_path)
+    workbook, elapsed, issues = migrate_workbook(file_path)
 
     print(f"Migration completed in {elapsed:.2f} seconds")
     if issues:

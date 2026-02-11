@@ -1,4 +1,4 @@
-from openpyxl import load_workbook, Workbook
+from openpyxl import _ZipFileFileProtocol, load_workbook, Workbook
 import pandas as pd
 import warnings
 import time
@@ -18,7 +18,7 @@ from .outils import (
 from .classes import values
 
 
-def tool(old_wb: Workbook | str | os.PathLike):
+def migrate_workbook(old_wb: Workbook | _ZipFileFileProtocol) -> tuple[Workbook, float, list[str]]:
     start_time = time.time()
 
     mapping_wastes = pd.read_pickle(
@@ -29,15 +29,15 @@ def tool(old_wb: Workbook | str | os.PathLike):
     )
 
     # load old filled-out Template
-    if isinstance(old_wb, (str, os.PathLike)):
+    if isinstance(old_wb, _ZipFileFileProtocol):
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", category=UserWarning)
             old_wb_obj = load_workbook(old_wb, data_only=False)
-    elif old_wb is None:
-        raise ValueError("old_wb must be a file path or an openpyxl Workbook")
-    else:
+    elif isinstance(old_wb, Workbook):
         # already a workbook-like object
         old_wb_obj = old_wb
+    else:
+        raise ValueError(f"old_wb [{type(old_wb)}] must be a file path or an openpyxl Workbook")
 
     # load new empty Template
     with as_file(
