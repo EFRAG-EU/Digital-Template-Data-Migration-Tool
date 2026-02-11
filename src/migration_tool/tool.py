@@ -2,7 +2,6 @@ from openpyxl import _ZipFileFileProtocol, load_workbook, Workbook
 import pandas as pd
 import warnings
 import time
-import os
 from importlib.resources import files, as_file
 
 from .outils import (
@@ -12,8 +11,7 @@ from .outils import (
     change_wastes,
     clean_NR_with_no_data,
     copy_values,
-    paste_values,
-    flatten_sublists_lc,
+    paste_values
 )
 from .classes import values
 
@@ -45,7 +43,7 @@ def migrate_workbook(old_wb: Workbook | _ZipFileFileProtocol) -> tuple[Workbook,
     ) as path:
         new_wb_empty = load_workbook(path, data_only=False)
 
-    list_migrationissues = []
+    list_migrationissues: list[str] = []
 
     version_cell = old_wb_obj["Introduction"].cell(row=1, column=3).value
     version_cell_new = new_wb_empty["Introduction"].cell(row=1, column=3).value
@@ -67,7 +65,7 @@ def migrate_workbook(old_wb: Workbook | _ZipFileFileProtocol) -> tuple[Workbook,
     df_old_tomerge = apply_changes_NR(df_old_wv, version_cell, version_cell_new)
     df_old_tomerge = clean_NR_with_no_data(df_old_tomerge)
     if version_cell in ["1.0.0", "1.0.1"]:
-        list_migrationissues.append(change_wastes(df_old_tomerge, mapping_wastes))
+        list_migrationissues.extend(change_wastes(df_old_tomerge, mapping_wastes))
 
     df_new_wv = df_new.merge(df_old_tomerge)
     missingNR_df_new_wv = pd.concat([missingNR_df_new, missingNR_df_old_values], axis=1)
@@ -100,4 +98,4 @@ def migrate_workbook(old_wb: Workbook | _ZipFileFileProtocol) -> tuple[Workbook,
     paste_values(new_wb_empty, df_new_wv, NR=True)
 
     elapsed = time.time() - start_time
-    return new_wb_empty, elapsed, flatten_sublists_lc(list_migrationissues)
+    return new_wb_empty, elapsed, list_migrationissues

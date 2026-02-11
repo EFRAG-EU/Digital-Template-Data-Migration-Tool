@@ -105,14 +105,14 @@ def apply_changes_NR(df, version_cell, version_cell_new):
     return df
 
 
-def change_wastes(df, mapping):
+def change_wastes(df, mapping) -> list[str]:
     old_wastes = (
         df.loc[df["name_ranges"] == "TypeOfWasteAxis", "cell_values"]
         .values[0]
         .first_element_row(double_list=False)
     )
     new_wastes = []
-    list_wasteissues = []
+    list_wasteissues: list[str] = []
     for i in old_wastes:
         if i is not None:
             if pd.isna(mapping.loc[mapping["old"] == i, "new"].values[0]):
@@ -121,11 +121,7 @@ def change_wastes(df, mapping):
                         f"Waste category {i} not present in new Regulation. Please, see https://eur-lex.europa.eu/legal-content/EN/TXT/PDF/?uri=CELEX:32014D0955"
                     ]
                 )
-                list_wasteissues.append(
-                    [
-                        f"Waste category --{i}-- not present in new Regulation. Please, see https://eur-lex.europa.eu/legal-content/EN/TXT/PDF/?uri=CELEX:32014D0955"
-                    ]
-                )
+                list_wasteissues.append(f"Waste category --{i}-- not present in new Regulation. Please, see https://eur-lex.europa.eu/legal-content/EN/TXT/PDF/?uri=CELEX:32014D0955")
             else:
                 new_wastes.append([mapping.loc[mapping["old"] == i, "new"].values[0]])
     df.loc[df["name_ranges"] == "TypeOfWasteAxis", "cell_values"] = values(new_wastes)
@@ -225,9 +221,3 @@ def paste_values(pyxl, df, NR=None):
                         if df["name_ranges"][i] in add_checkbox:
                             value.add_checkboxes()  # add checkboxes for the specific NRs (see above)
                     value.paste(sheet, shape)
-
-
-def flatten_sublists_lc(nested_list):
-    return [
-        item for sublist in nested_list for item in sublist
-    ]  # to later flatten list of issues
