@@ -121,7 +121,9 @@ def change_wastes(df, mapping) -> list[str]:
                         f"Waste category {i} not present in new Regulation. Please, see https://eur-lex.europa.eu/legal-content/EN/TXT/PDF/?uri=CELEX:32014D0955"
                     ]
                 )
-                list_wasteissues.append(f"Waste category --{i}-- not present in new Regulation. Please, see https://eur-lex.europa.eu/legal-content/EN/TXT/PDF/?uri=CELEX:32014D0955")
+                list_wasteissues.append(
+                    f"Waste category --{i}-- not present in new Regulation. Please, see https://eur-lex.europa.eu/legal-content/EN/TXT/PDF/?uri=CELEX:32014D0955"
+                )
             else:
                 new_wastes.append([mapping.loc[mapping["old"] == i, "new"].values[0]])
     df.loc[df["name_ranges"] == "TypeOfWasteAxis", "cell_values"] = values(new_wastes)
@@ -147,7 +149,7 @@ def clean_NR_with_no_data(df):
     df_toattach = df[df["name_ranges"].isin(list_of_NRs_toNOTremove)]
 
     for kw in list_of_keywords:
-        df = df[df["name_ranges"].str.contains(kw) == False]
+        df = df[~df["name_ranges"].str.contains(kw, na=False)]
 
     return pd.concat([df.reset_index(drop=True), df_toattach]).reset_index(drop=True)
 

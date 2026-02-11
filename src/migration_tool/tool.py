@@ -1,22 +1,25 @@
-from openpyxl import _ZipFileFileProtocol, load_workbook, Workbook
-import pandas as pd
-import warnings
 import time
-from importlib.resources import files, as_file
+import warnings
+from importlib.resources import as_file, files
 
+import pandas as pd
+from openpyxl import Workbook, _ZipFileFileProtocol, load_workbook
+
+from .classes import values
 from .outils import (
-    access_NR_table,
     access_missingNR_table,
+    access_NR_table,
     apply_changes_NR,
     change_wastes,
     clean_NR_with_no_data,
     copy_values,
-    paste_values
+    paste_values,
 )
-from .classes import values
 
 
-def migrate_workbook(old_wb: Workbook | _ZipFileFileProtocol) -> tuple[Workbook, float, list[str]]:
+def migrate_workbook(
+    old_wb: Workbook | _ZipFileFileProtocol,
+) -> tuple[Workbook, float, list[str]]:
     start_time = time.time()
 
     mapping_wastes = pd.read_pickle(
@@ -35,7 +38,9 @@ def migrate_workbook(old_wb: Workbook | _ZipFileFileProtocol) -> tuple[Workbook,
         # already a workbook-like object
         old_wb_obj = old_wb
     else:
-        raise ValueError(f"old_wb [{type(old_wb)}] must be a file path or an openpyxl Workbook")
+        raise ValueError(
+            f"old_wb [{type(old_wb)}] must be a file path or an openpyxl Workbook"
+        )
 
     # load new empty Template
     with as_file(
