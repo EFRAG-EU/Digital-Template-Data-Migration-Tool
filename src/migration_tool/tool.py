@@ -1,9 +1,12 @@
 import time
 import warnings
 from importlib.resources import as_file, files
+from pathlib import Path
+from typing import BinaryIO, TypeAlias
 
 import pandas as pd
-from openpyxl import Workbook, _ZipFileFileProtocol, load_workbook
+from openpyxl import Workbook
+from openpyxl import load_workbook as openpyxl_load_workbook
 
 from .classes import values
 from .outils import (
@@ -16,24 +19,37 @@ from .outils import (
     paste_values,
 )
 
+FilePathOrBinaryBlob: TypeAlias = str | Path | BinaryIO
+
+
+def load_workbook_quietly(
+    file: FilePathOrBinaryBlob, data_only: bool = False
+) -> Workbook:
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "ignore",
+            message=".*? extension is not supported and will be removed",
+            category=UserWarning,
+            module=r"openpyxl\.worksheet\._reader",
+        )
+        return openpyxl_load_workbook(file, data_only=data_only)
+
 
 def migrate_workbook(
-    old_wb: Workbook | _ZipFileFileProtocol,
+    old_wb: Workbook | FilePathOrBinaryBlob,
 ) -> tuple[Workbook, float, list[str]]:
     start_time = time.time()
 
     mapping_wastes = pd.read_pickle(
-        files("migration_tool.data").joinpath("Mapping_wastes.pkl")
+        files("migration_tool.data").joinpath("Mapping_wastes.pkl").open("rb")
     )
     missingNR_df = pd.read_pickle(
-        files("migration_tool.data").joinpath("missingNR_df.pkl")
+        files("migration_tool.data").joinpath("missingNR_df.pkl").open("rb")
     )
 
     # load old filled-out Template
-    if isinstance(old_wb, _ZipFileFileProtocol):
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", category=UserWarning)
-            old_wb_obj = load_workbook(old_wb, data_only=False)
+    if isinstance(old_wb, FilePathOrBinaryBlob):
+        old_wb_obj = load_workbook_quietly(old_wb, data_only=False)
     elif isinstance(old_wb, Workbook):
         # already a workbook-like object
         old_wb_obj = old_wb
@@ -46,7 +62,7 @@ def migrate_workbook(
     with as_file(
         files("migration_tool.data").joinpath("VSME-Digital-Template-1.1.1.xlsx")
     ) as path:
-        new_wb_empty = load_workbook(path, data_only=False)
+        new_wb_empty = load_workbook_quietly(path, data_only=False)
 
     list_migrationissues: list[str] = []
 
