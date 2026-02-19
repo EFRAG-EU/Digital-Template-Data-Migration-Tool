@@ -1,9 +1,10 @@
+import io
 import time
 import warnings
 from importlib.resources import as_file, files
 from io import BytesIO
 from pathlib import Path
-from typing import BinaryIO, TypeAlias
+from typing import TypeAlias
 
 import pandas as pd
 from openpyxl import Workbook
@@ -20,7 +21,7 @@ from .outils import (
     paste_values,
 )
 
-FilePathOrBinaryBlob: TypeAlias = str | Path | BinaryIO
+FilePathOrBinaryBlob: TypeAlias = str | Path | io.BufferedIOBase
 
 
 def load_workbook_quietly(
@@ -37,7 +38,7 @@ def load_workbook_quietly(
 
 
 def migrate_workbook_as_bytes(
-    old_wb: BinaryIO,
+    old_wb: FilePathOrBinaryBlob,
 ) -> tuple[bytes, float, list[str]]:
     new_wb, elapsed, issues = migrate_workbook(old_wb)
     new_wb_bytes = BytesIO()
