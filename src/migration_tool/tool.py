@@ -63,17 +63,18 @@ def migrate_workbook(
     # load old filled-out Template
     if isinstance(old_wb, FilePathOrBinaryBlob):
         old_wb_obj = load_workbook_quietly(old_wb, data_only=False)
-    elif isinstance(old_wb, Workbook):
-        # already a workbook-like object
-        old_wb_obj = old_wb
+        old_wb_obj_values = load_workbook_quietly(old_wb, data_only=True)
     else:
         raise ValueError(
             f"old_wb [{type(old_wb)}] must be a file path or an openpyxl Workbook"
         )
 
     list_migrationissues: list[str] = []
-    if check_status_incomplete(old_wb_obj):
-        list_migrationissues.append("The old workbook is incomplete. Migration happened only for the filled-out cells, but some data might be missing.")
+    if check_status_incomplete(old_wb_obj_values):
+        list_migrationissues.append(
+            "The old workbook is incomplete. Migration happened only for the filled-out cells, but some data might be missing."
+        )
+
     # load new empty Template
     with as_file(
         files("migration_tool.data").joinpath("VSME-Digital-Template-1.2.0.xlsx")
