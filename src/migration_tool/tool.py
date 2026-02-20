@@ -15,7 +15,6 @@ from .outils import (
     create_table_of_contents,
     access_NR_table,
     access_missingNR_table,
-    access_NR_table,
     apply_changes_NR,
     change_wastes,
     clean_NR_with_no_data,
