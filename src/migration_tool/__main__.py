@@ -26,7 +26,12 @@ def main():
 
     workbook, elapsed, issues = tool(file_path)
 
+    # Save the migrated workbook
+    output_path = Path(file_path).stem + "_migrated.xlsx"
+    workbook.save(output_path)
+
     print(f"Migration completed in {elapsed:.2f} seconds")
+    print(f"Migrated workbook saved to: {output_path}")
     if issues:
         print(f"Migration issues: {issues}")
     else:

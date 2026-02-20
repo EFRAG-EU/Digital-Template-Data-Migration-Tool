@@ -6,6 +6,7 @@ import os
 from importlib.resources import files, as_file
 
 from .outils import (
+    create_table_of_contents,
     access_NR_table,
     access_missingNR_table,
     apply_changes_NR,
@@ -40,12 +41,19 @@ def tool(old_wb: Workbook | str | os.PathLike):
         old_wb_obj = old_wb
 
     # load new empty Template
-    with as_file(
-        files("migration_tool.data").joinpath("VSME-Digital-Template-1.1.1.xlsx")
-    ) as path:
-        new_wb_empty = load_workbook(path, data_only=False)
+    template_dir = files("migration_tool.data")
+    with as_file(template_dir) as template_path:
+        template_files = list(template_path.glob("VSME-Digital-Template-*.xlsx"))
+        if not template_files:
+            raise FileNotFoundError(
+                "No template file found matching pattern VSME-Digital-Template-*.xlsx"
+            )
+        new_wb_empty = load_workbook(template_files[0], data_only=False)
+        new_wb_empty_values = load_workbook(template_files[0], data_only=True)
 
     list_migrationissues = []
+
+    table_of_contents = create_table_of_contents(new_wb_empty_values)
 
     version_cell = old_wb_obj["Introduction"].cell(row=1, column=3).value
     version_cell_new = new_wb_empty["Introduction"].cell(row=1, column=3).value
@@ -97,7 +105,7 @@ def tool(old_wb: Workbook | str | os.PathLike):
             ] = values([[False]])
 
     paste_values(new_wb_empty, missingNR_df_new_wv)
-    paste_values(new_wb_empty, df_new_wv, NR=True)
+    paste_values(new_wb_empty, df_new_wv, NR=True, table_of_contents=table_of_contents)
 
     elapsed = time.time() - start_time
     return new_wb_empty, elapsed, flatten_sublists_lc(list_migrationissues)

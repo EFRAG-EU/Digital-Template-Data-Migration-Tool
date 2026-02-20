@@ -1,7 +1,16 @@
+from typing import Dict
 import pandas as pd
 from openpyxl.utils import range_boundaries
 
-from .classes import shapes, values
+from .classes import shapes, values, check_formula
+
+
+def create_table_of_contents(wb_values) -> Dict[str, int]:
+    _keys = [
+        cell[0].value for cell in wb_values["Table of Contents & Validation"]["B9:B68"]
+    ]
+    _values = list(range(9, 69))
+    return dict(zip(_keys, _values))
 
 
 def access_NR_table(pyxl_NR):
@@ -81,6 +90,11 @@ def apply_changes_NR(df, version_cell, version_cell_new):
             "MostSeniorLevelAccountableForImplementationOfPolicies",
         ],
         "1.1.1": [
+            "NumberOfPermanentContractEmployees",
+            "DescriptionOfTheEffectiveParticipationOfWorkersUsersOrOtherInterestedPartiesOrCommunitiesInGovernance",
+            "MostSeniorLevelAccountableForImplementationOfPolicies",
+        ],
+        "1.2.0": [
             "NumberOfPermanentContractEmployees",
             "DescriptionOfTheEffectiveParticipationOfWorkersUsersOrOtherInterestedPartiesOrCommunitiesInGovernance",
             "MostSeniorLevelAccountableForImplementationOfPolicies",
@@ -179,7 +193,7 @@ def copy_values(pyxl, df, key=None):
         return df["cell_values"]
 
 
-def paste_values(pyxl, df, NR=None):
+def paste_values(pyxl, df, NR=None, table_of_contents=None):
     """Paste values from a DataFrame column into an openpyxl workbook"""
 
     sheet_names = pyxl.sheetnames
@@ -197,13 +211,21 @@ def paste_values(pyxl, df, NR=None):
         "SiteLocatedInABiodiversitySensitiveArea",
         "SiteLocatedNearABiodiversitySensitiveArea",
     ]
-    # yellow_checkbox = ["CountryOfEmploymentContractAxis"].values
-    # if NR is "CountryOfEmploymentContractAxis":
+
     for i in range(len(df)):
         sheet = pyxl[df["sheets"][i]]
         rng = sheet[df["cell_ranges"][i]]
         shape = df["cell_shapes"][i]
         value = df["cell_values"][i]
+
+        # specific handling for list of classified information
+        if table_of_contents is not None:
+            if (
+                df["name_ranges"][i]
+                == "ListOfOmittedDisclosuresDeemedToBeClassifiedOrSensitiveInformation"
+            ):
+                classified_info_handling(value, table_of_contents, pyxl)
+                continue
 
         if shape.isonecell():
             rng.value = value.topleft()  # when it's one cell, paste topleft
@@ -231,3 +253,17 @@ def flatten_sublists_lc(nested_list):
     return [
         item for sublist in nested_list for item in sublist
     ]  # to later flatten list of issues
+
+
+def classified_info_handling(value, table_of_contents, pyxl):
+    for input in value.values():
+        if input[0] is not None:
+            match = [
+                s for s in table_of_contents.keys() if input[0][0:2] in s
+            ]  # matches based on first 2 characters
+            if match:
+                row_n = [table_of_contents.get(key) for key in match]
+                for row in row_n:
+                    cell = pyxl["Table of Contents & Validation"].cell
+                    if not check_formula(cell(row=row, column=4)):
+                        cell(row=row, column=4).value = True
