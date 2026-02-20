@@ -12,6 +12,7 @@ from openpyxl import load_workbook as openpyxl_load_workbook
 
 from .classes import values
 from .outils import (
+    check_status_incomplete,
     create_table_of_contents,
     access_NR_table,
     access_missingNR_table,
@@ -70,14 +71,15 @@ def migrate_workbook(
             f"old_wb [{type(old_wb)}] must be a file path or an openpyxl Workbook"
         )
 
+    list_migrationissues: list[str] = []
+    if check_status_incomplete(old_wb_obj):
+        list_migrationissues.append("The old workbook is incomplete. Migration happened only for the filled-out cells, but some data might be missing.")
     # load new empty Template
     with as_file(
         files("migration_tool.data").joinpath("VSME-Digital-Template-1.2.0.xlsx")
     ) as path:
         new_wb_empty = load_workbook_quietly(path, data_only=False)
         new_wb_empty_values = load_workbook_quietly(path, data_only=True)
-
-    list_migrationissues: list[str] = []
 
     table_of_contents = create_table_of_contents(new_wb_empty_values)
 

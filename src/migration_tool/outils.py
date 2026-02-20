@@ -5,6 +5,27 @@ from openpyxl.utils import range_boundaries
 from .classes import shapes, values, check_formula
 
 
+def check_status_incomplete(openpyxl_obj) -> bool:
+    """Check if the workbook is filled out or not based on the value of the 'Status' cell in the 'Table of Contents & Validation' sheet"""
+
+    status_cell = openpyxl_obj["Table of Contents & Validation"]["C3"].value
+    if status_cell in [
+        "INCOMPLETE",
+        "UFÆRDIG",
+        "ONVOLLEDIG",
+        "INCOMPLET",
+        "UNVOLLSTÄNDIG",
+        "NEAMHIOMLÁN",
+        "INCOMPLETO",
+        "NEBAIGTA",
+        "NIEKOMPLETNY",
+        "INCOMPLETO",
+        "INCOMPLETO",
+    ]:
+        return True
+    else:
+        return False
+
 def create_table_of_contents(wb_values) -> Dict[str, int]:
     _keys = [
         cell[0].value for cell in wb_values["Table of Contents & Validation"]["B9:B68"]
