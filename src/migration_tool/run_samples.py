@@ -22,7 +22,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import List
 
-from .tool import tool
+from .tool import migrate_workbook
 
 
 @dataclass
@@ -41,7 +41,7 @@ def resolve_repo_root() -> Path:
 
 def run_sample(sample_path: Path, output_dir: Path | None) -> SampleResult:
     try:
-        new_wb, elapsed, issues = tool(str(sample_path))
+        new_wb, elapsed, issues = migrate_workbook(str(sample_path))
         output_path = None
         if output_dir is not None:
             output_dir.mkdir(parents=True, exist_ok=True)

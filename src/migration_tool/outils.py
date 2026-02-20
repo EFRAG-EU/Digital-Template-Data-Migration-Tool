@@ -119,14 +119,14 @@ def apply_changes_NR(df, version_cell, version_cell_new):
     return df
 
 
-def change_wastes(df, mapping):
+def change_wastes(df, mapping) -> list[str]:
     old_wastes = (
         df.loc[df["name_ranges"] == "TypeOfWasteAxis", "cell_values"]
         .values[0]
         .first_element_row(double_list=False)
     )
     new_wastes = []
-    list_wasteissues = []
+    list_wasteissues: list[str] = []
     for i in old_wastes:
         if i is not None:
             if pd.isna(mapping.loc[mapping["old"] == i, "new"].values[0]):
@@ -136,9 +136,7 @@ def change_wastes(df, mapping):
                     ]
                 )
                 list_wasteissues.append(
-                    [
-                        f"Waste category --{i}-- not present in new Regulation. Please, see https://eur-lex.europa.eu/legal-content/EN/TXT/PDF/?uri=CELEX:32014D0955"
-                    ]
+                    f"Waste category --{i}-- not present in new Regulation. Please, see https://eur-lex.europa.eu/legal-content/EN/TXT/PDF/?uri=CELEX:32014D0955"
                 )
             else:
                 new_wastes.append([mapping.loc[mapping["old"] == i, "new"].values[0]])
@@ -165,7 +163,7 @@ def clean_NR_with_no_data(df):
     df_toattach = df[df["name_ranges"].isin(list_of_NRs_toNOTremove)]
 
     for kw in list_of_keywords:
-        df = df[df["name_ranges"].str.contains(kw) == False]
+        df = df[~df["name_ranges"].str.contains(kw, na=False)]
 
     return pd.concat([df.reset_index(drop=True), df_toattach]).reset_index(drop=True)
 
@@ -247,12 +245,6 @@ def paste_values(pyxl, df, NR=None, table_of_contents=None):
                         if df["name_ranges"][i] in add_checkbox:
                             value.add_checkboxes()  # add checkboxes for the specific NRs (see above)
                     value.paste(sheet, shape)
-
-
-def flatten_sublists_lc(nested_list):
-    return [
-        item for sublist in nested_list for item in sublist
-    ]  # to later flatten list of issues
 
 
 def classified_info_handling(value, table_of_contents, pyxl):
