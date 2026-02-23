@@ -14,6 +14,12 @@ dependencies = [
 ]
 requires-python = ">=3.11"
 
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-github-actions-annotate-failures",
+]
+
 [project.urls]
 Homepage = "https://github.com/EFRAG-EU/Digital-Template-Data-Migration-Tool"
 
@@ -23,21 +29,3 @@ packages = ["src/migration_tool"]
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
-
-# to uninstall the package in the venv:
-# & .venv/Scripts/python.exe -m pip uninstall -y migration_tool
-
-# to reinstall it as edible:
-# & .venv/Scripts/python.exe -m pip install -e "C:\Users\Andrea.Baschiera\OneDrive - EFRAG\Desktop\Digital-Template-Data-Migration-Tool"
-
-# to show it;
-# & .venv/Scripts/python.exe -m pip show migration_tool
-
-# with a __main__ file, more pythonic way to run it:
-# python -m migration_tool
-# or
-# python -m migration_tool *path to xlsx file of choice as function argument*
-# the "-m" flag is needed!! Otherwise relative imports won't work
-
-# Run tests with the venv python
-# & .venv/Scripts/python.exe -m unittest -v

@@ -24,6 +24,91 @@ The tool does not alter your original file — it creates a new copy.
 If the selected workbook is not recognized as a valid VSME template, the script exits safely with a warning.
 Some formatting (like checkboxes and arrows to navigate tabs) are not transferred.
 
+## Installation
+
+### For Users
+
+```bash
+pip install git+https://github.com/EFRAG-EU/Digital-Template-Data-Migration-Tool.git
+```
+
+### For Development
+
+1. Clone the repository:
+
+   ```bash
+   git clone https://github.com/EFRAG-EU/Digital-Template-Data-Migration-Tool.git
+   cd Digital-Template-Data-Migration-Tool
+   ```
+
+2. Create and activate a virtual environment (recommended):
+
+   ```bash
+   python -m venv .venv
+   # On Windows:
+   .venv\Scripts\activate
+   # On Linux/Mac:
+   source .venv/bin/activate
+   ```
+
+3. Install the package in editable mode with development dependencies:
+
+   ```bash
+   pip install -e .[dev]
+   ```
+
+   **Note:** The `[dev]` extra installs optional development dependencies (pytest and testing tools) defined in `pyproject.toml`. For production use, you can omit `[dev]` and just use `pip install -e .`
+
+## Usage
+
+### Running the Migration Tool
+
+The tool can be run as a Python module:
+
+```bash
+# Interactive mode (prompts for file selection)
+python -m migration_tool
+
+# With a specific file path
+python -m migration_tool path/to/your/template.xlsx
+```
+
+**Note:** The `-m` flag is required for the module to work correctly with relative imports.
+
+### Running Tests
+
+Run all tests with pytest:
+
+```bash
+pytest tests/ -v
+```
+
+Or run tests with more detailed output:
+
+```bash
+pytest tests/ -v --tb=short
+```
+
+### Package Management
+
+View installed package information:
+
+```bash
+pip show migration_tool
+```
+
+Uninstall the package:
+
+```bash
+pip uninstall migration_tool
+```
+
+Reinstall after making changes (when in editable mode, changes are automatically reflected):
+
+```bash
+pip install -e .[dev]
+```
+
 ## Authors
 
 Developed by EFRAG's Digital Team.
