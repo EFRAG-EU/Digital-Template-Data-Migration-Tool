@@ -18,6 +18,7 @@ requires-python = ">=3.11"
 dev = [
     "pytest>=8.0.0",
     "pytest-github-actions-annotate-failures",
+    "ruff>=0.15.2",
 ]
 
 [project.urls]
@@ -25,6 +26,9 @@ Homepage = "https://github.com/EFRAG-EU/Digital-Template-Data-Migration-Tool"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/migration_tool"]
+
+[tool.ruff]
+extend-exclude = ["*.ipynb"]
  
 [build-system]
 requires = ["hatchling"]

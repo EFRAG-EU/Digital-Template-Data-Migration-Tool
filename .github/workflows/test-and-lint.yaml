@@ -30,3 +30,21 @@ jobs:
         run: pytest tests/ -v --tb=short --color=yes
         env:
           PYTEST_GITHUB_ACTIONS_ANNOTATE: "true"
+
+  lint:
+    name: Ruff Lint and Format Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run Ruff lint check
+        uses: astral-sh/ruff-action@v1
+        with:
+          args: check --extend-select I . --output-format=github
+
+      - name: Run Ruff format check
+        uses: astral-sh/ruff-action@v1
+        with:
+          args: format --check .
+
