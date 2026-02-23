@@ -12,6 +12,8 @@ if str(SRC_DIR) not in sys.path:
 
 
 class TestMigrateWorkbookSamples(unittest.TestCase):
+    """Test migrating all sample workbooks and writing results to tests/results directory."""
+
     def test_migrate_all_samples_and_write_results(self):
         samples_dir = REPO_ROOT / "tests" / "templates_samples"
         results_dir = REPO_ROOT / "tests" / "results"

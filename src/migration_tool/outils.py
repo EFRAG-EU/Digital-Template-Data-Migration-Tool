@@ -26,7 +26,10 @@ def check_status_incomplete(openpyxl_obj) -> bool:
     else:
         return False
 
+
 def create_table_of_contents(wb_values) -> Dict[str, int]:
+    """Create a dict with keys as names of ToC sections and values as the corresponding row numbers in 'Table of Contents & Validation' sheet.
+    If there is any change in where the ToC is located in the sheet, or changes in the range of cells utilised for it, this function should be updated."""
     _keys = [
         cell[0].value for cell in wb_values["Table of Contents & Validation"]["B9:B68"]
     ]
@@ -35,7 +38,10 @@ def create_table_of_contents(wb_values) -> Dict[str, int]:
 
 
 def access_NR_table(pyxl_NR, sheets=None):
-    """Access names, cell references and coordinates of each name range from the python object containing name ranges"""
+    """Access names, cell references and coordinates of each name range from the python object containing name ranges.
+    Returns a (pandas) DataFrame.
+    There were some VSME samples that, after processing in openpyxl, returned wrong sheet references for their name ranges (e.g. "[1]General Information" instead of "General Information");
+    To handle this, a list of issues (str explaining where the issue is) is returned alongside the DataFrame."""
 
     list_NR = list(pyxl_NR.keys())
     list_sheets = []
@@ -79,7 +85,10 @@ def access_NR_table(pyxl_NR, sheets=None):
 
 
 def access_missingNR_table(df_missingNR, version_cell):
-    """Access sheets, cell references and coordinates of each missing name range"""
+    """Access sheets, cell references and coordinates of each missing name range.
+    the func argument df_missingNR is an hard-coded DataFrame created because certain name ranges were not present in old VSME versions.
+    The DataFrame (missingNR_df.pkl) is saved in src/migration_tool/data, and must be updated for every new VSME version,
+    with a new column for each version (and its corresponding references for every missing name range)."""
 
     list_of_sheets = []
     list_of_ranges = []
@@ -107,6 +116,11 @@ def access_missingNR_table(df_missingNR, version_cell):
 
 
 def apply_changes_NR(df, version_cell, version_cell_new):
+    """Change name ranges based on the version of the old workbook, and return a df with the updated name ranges.
+    This is necessary because some name ranges have changed from version to version.
+    This dictionary could be transformed into a pd DataFrame and saved it as a pickle like missingNR_df if
+    many name changes will occur in the future, but for now it is hard-coded here."""
+
     dict_of_changes_NR = {
         "1.0.0": [
             "NumberOfPermanentContactEmployees",
@@ -154,6 +168,10 @@ def apply_changes_NR(df, version_cell, version_cell_new):
 
 
 def change_wastes(df, mapping) -> list[str]:
+    """Change waste categories based on mapping_wastes.pkl provided in src/migration_tool/data/mapping.
+    Mapping is based on the changes in waste categories in the new EU Regulation (see more in wastes.xlsx in base dir).
+    Returns a list of issues encountered during the change (e.g. old waste category not present in the new Regulation)."""
+
     old_wastes = (
         df.loc[df["name_ranges"] == "TypeOfWasteAxis", "cell_values"]
         .values[0]
@@ -180,6 +198,10 @@ def change_wastes(df, mapping) -> list[str]:
 
 
 def clean_NR_with_no_data(df):
+    """Function to filter name ranges to process.
+    Some (most starting with template_) were created for Digital Converter and not for storing data.
+    Unfortunately, there were some exceptions and edge cases (see list_of_NRs_toNOTremove)."""
+
     list_of_keywords = [
         "template_",
         "enum_",
@@ -208,7 +230,9 @@ def get_indexes_of_NAs(df, column) -> list[int]:
 
 
 def copy_values(pyxl, df, key=None):
-    """Copy values from old workbook to new workbook based on name ranges and cell shapes, and return a df with key and cell values"""
+    """Copy values from openpyxl workbook based on cell shapes, returns DataFrame with col of cell values.
+    2 cases: 1) if key is provided, a DataFrame with 2 cols (name ranges and values) is returned;
+             2) if key is not provided, just the cell values are returned as a pandas Series."""
 
     cell_values = []
     index_sheets = get_indexes_of_NAs(df, "sheets")
@@ -237,7 +261,18 @@ def copy_values(pyxl, df, key=None):
 
 
 def paste_values(pyxl, df, NR=None, table_of_contents=None):
-    """Paste values from a DataFrame column into an openpyxl workbook"""
+    """Paste values from a DataFrame column into an openpyxl workbook.
+
+    Treatment for merged cells (merged only across columns in VSMEs):
+    - thanks to .merged_cells.ranges method, coordinates of merged cells are extracted and saved in a DataFrame (merged_loc);
+    - before pasting, check if top-left cell of the shape is in the merged_loc df, and if so,
+      we keep only the first element of each row of values (with .first_element_row method) to fit merged shape.
+
+    Treatment for enlarged ranges (throughout VSME versions) are handled with .enlarged_range_correction method,
+    which pastes values only in the original shape of the name range and None(s) for the rest of the enlarged range.
+
+    The NR=True flag argument is used for specifically handling the checkboxes of the biodiversity sites, as if True is pasted the rest of the cols must have False for uniformity (see Template).
+    """
 
     sheet_names = pyxl.sheetnames
     merged_loc = pd.DataFrame()
@@ -246,7 +281,6 @@ def paste_values(pyxl, df, NR=None, table_of_contents=None):
         merged = list(pyxl[sheet].merged_cells.ranges)
         merged_list = []
         for i in range(len(merged)):
-            str(merged[i])
             merged_list.append(range_boundaries(str(merged[i]))[:2])
         merged_loc = pd.concat([merged_loc, pd.DataFrame({sheet: merged_list})], axis=1)
 
@@ -293,6 +327,10 @@ def paste_values(pyxl, df, NR=None, table_of_contents=None):
 
 
 def classified_info_handling(value, table_of_contents, pyxl):
+    """Specific handling for the list of classified information (see new functionality added in version 1.2.0).
+    Check where the first 2 characters (ex B1) of "value" (choices about classified info in old versions) match in the ToC,
+    and add True in the corresponding row in col D of new "Table of Contents & Validation" sheet where formulas are not detected (formula cells get automatically updated upon opening new version)."""
+
     for input in value.values():
         if input[0] is not None:
             match = [

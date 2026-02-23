@@ -1,4 +1,6 @@
-"""Entry point for running migration_tool as a module."""
+"""Entry point for running migration_tool as a module.
+Command line usage: python -m migration_tool <path_to_excel_file>
+If no path is provided, it defaults to a sample template in the tests directory (see line 27)."""
 
 import sys
 from pathlib import Path
