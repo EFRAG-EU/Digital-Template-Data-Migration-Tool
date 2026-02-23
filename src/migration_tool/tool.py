@@ -69,6 +69,7 @@ def migrate_workbook(
             f"old_wb [{type(old_wb)}] must be a file path or an openpyxl Workbook"
         )
 
+    # list of migration issues to return (and to be displayed in webpage after migration), remember to update if any new potential issues arise.
     list_migrationissues: list[str] = []
     if check_status_incomplete(old_wb_obj_values):
         list_migrationissues.append(

@@ -7,6 +7,14 @@ def check_formula(cell):
 
 
 class shapes(object):
+    """
+    Class for shapes (ex left:1, top:1, right:3, bottom:3).
+    Initialized with a tuple (or None if no shape is found).
+    Provides methods to get the left, top, right, bottom, number of rows and columns of the shape,
+    check if it is one cell, and
+    build value from the shapes (list of lists).
+    """
+
     def __init__(self, tuple):
         if tuple is None:
             self.shape = None
@@ -14,7 +22,6 @@ class shapes(object):
             self.shape = tuple
 
     # Getters
-
     def left(self):
         if self.shape is not None:
             return self.shape[0]
@@ -79,6 +86,15 @@ class shapes(object):
 
 
 class values(object):
+    """
+    Class for values (ex [[1,2],[3,4]]).
+    Initialized with a list of lists (or None if no values are found).
+    Provides methods to get the values, the top left value, the first element of each row,
+    to enlarge the values to fit an input shape,
+    to add checkboxes (change None to False), and
+    to paste the values into a sheet (iterating over rows and columns).
+    """
+
     def __init__(self, list_of_lists):
         if list_of_lists is None:
             self.val = None
