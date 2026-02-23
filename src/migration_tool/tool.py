@@ -12,14 +12,14 @@ from openpyxl import load_workbook as openpyxl_load_workbook
 
 from .classes import values
 from .outils import (
-    check_status_incomplete,
-    create_table_of_contents,
-    access_NR_table,
     access_missingNR_table,
+    access_NR_table,
     apply_changes_NR,
     change_wastes,
+    check_status_incomplete,
     clean_NR_with_no_data,
     copy_values,
+    create_table_of_contents,
     paste_values,
 )
 

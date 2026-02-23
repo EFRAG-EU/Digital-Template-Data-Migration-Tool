@@ -1,8 +1,9 @@
 from typing import Dict
+
 import pandas as pd
 from openpyxl.utils import range_boundaries
 
-from .classes import shapes, values, check_formula
+from .classes import check_formula, shapes, values
 
 
 def check_status_incomplete(openpyxl_obj) -> bool:
@@ -25,6 +26,7 @@ def check_status_incomplete(openpyxl_obj) -> bool:
         return True
     else:
         return False
+
 
 def create_table_of_contents(wb_values) -> Dict[str, int]:
     _keys = [
