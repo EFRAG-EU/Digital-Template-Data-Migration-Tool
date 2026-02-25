@@ -16,6 +16,7 @@ These mechanics are similarly repeated for additional DataFrames of the missing 
 - Think about which new issues after a successful migration can arise with a newer version (ex change in the list of NACE codes with no matches for certain old categories), and, if so, add an error string manually to list_migrationissues (`list[str]`)\*\*\*
 - For every whole new functionality, check whether new data is required in latest version and, if so, create new mechanisms to handle how that new data will be displayed after migration;
 - Be careful about pasting old data into cells in which validation or rules have been added (ex checkboxes or fixed enumeration lists)
+- After completing this checklist, update the version number in the .toml file and attach a new tag in github to the latest commit; then, lastly, update the dependency in the .toml file in the Converter, and be sure that in the Converter's venv the migration tool package is updated to its latest version.
 
 ## Requirements
 
