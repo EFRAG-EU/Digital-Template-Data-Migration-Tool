@@ -306,12 +306,13 @@ def paste_values(pyxl, df, NR=None, table_of_contents=None):
                 continue
 
         if shape.isonecell():
-            rng.value = value.topleft()  # when it's one cell, paste topleft
+            if value.values() is not None:  # avoiding pasting formulas
+                rng.value = value.topleft()  # when it's one cell, paste topleft
 
         else:
             tuple_to_check = (shape.left(), shape.top())
 
-            if value.values() is not None:  # avoiding formulas
+            if value.values() is not None:  # avoiding pasting formulas
                 if (
                     tuple_to_check in merged_loc[df["sheets"][i]].values.tolist()
                 ):  # merged cells check
