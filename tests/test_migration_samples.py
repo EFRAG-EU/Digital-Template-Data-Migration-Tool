@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+from collections import Counter
+
 import pytest
-from conftest import EXPECTED_ISSUES, SAMPLE_PATHS
+from conftest import EXPECTED_ISSUES, SAMPLE_PATHS, MigrationResult
 
 if not SAMPLE_PATHS:
     pytest.fail(
@@ -16,32 +18,32 @@ if not SAMPLE_PATHS:
 class TestMigrationContract:
     """Every sample must satisfy these invariants after migration."""
 
-    def test_output_file_is_created(self, migration_result):
+    def test_output_file_is_created(self, migration_result: MigrationResult):
         assert migration_result.output_path.exists()
 
-    def test_output_file_is_non_empty(self, migration_result):
+    def test_output_file_is_non_empty(self, migration_result: MigrationResult):
         assert migration_result.output_path.stat().st_size > 0
 
-    def test_elapsed_time_is_non_negative(self, migration_result):
+    def test_elapsed_time_is_non_negative(self, migration_result: MigrationResult):
         assert migration_result.elapsed >= 0.0
 
-    def test_workbook_has_at_least_one_sheet(self, migration_result):
+    def test_workbook_has_at_least_one_sheet(self, migration_result: MigrationResult):
         assert len(migration_result.workbook.sheetnames) >= 1
 
-    def test_no_blank_sheet_names(self, migration_result):
+    def test_no_blank_sheet_names(self, migration_result: MigrationResult):
         for name in migration_result.workbook.sheetnames:
             assert name and name.strip(), (
                 f"Blank sheet name found in migrated workbook for "
                 f"{migration_result.sample_path.name}"
             )
 
-    def test_issues_is_a_list_of_strings(self, migration_result):
+    def test_issues_is_a_list_of_strings(self, migration_result: MigrationResult):
         issues = migration_result.issues
         assert isinstance(issues, list)
         for issue in issues:
             assert isinstance(issue, str)
 
-    def test_issues_contain_no_empty_strings(self, migration_result):
+    def test_issues_contain_no_empty_strings(self, migration_result: MigrationResult):
         for issue in migration_result.issues:
             assert issue.strip(), (
                 f"Empty/blank issue string found for "
@@ -52,7 +54,7 @@ class TestMigrationContract:
 class TestExpectedIssues:
     """Verify that reported issues match the documented baselines."""
 
-    def test_issues_match_baseline(self, migration_result):
+    def test_issues_match_baseline(self, migration_result: MigrationResult):
         name = migration_result.sample_path.name
         issues = migration_result.issues
         expected = EXPECTED_ISSUES.get(name, None)
@@ -74,14 +76,10 @@ class TestExpectedIssues:
                 f'    "{name}": {issues!r},'
             )
 
-    def test_no_duplicate_issues(self, migration_result):
-        issues = migration_result.issues
-        seen: set[str] = set()
-        duplicates: list[str] = []
-        for msg in issues:
-            if msg in seen:
-                duplicates.append(msg)
-            seen.add(msg)
+    def test_no_duplicate_issues(self, migration_result: MigrationResult):
+        duplicates = {
+            msg for msg, count in Counter(migration_result.issues).items() if count > 1
+        }
         assert not duplicates, (
-            f"Duplicate issues for {migration_result.sample_path.name}: {duplicates}"
+            f"Duplicate issues for {migration_result.sample_path.name}:\n  {duplicates}"
         )
