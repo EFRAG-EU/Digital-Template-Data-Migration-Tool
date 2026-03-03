@@ -1,7 +1,9 @@
 from typing import Dict
 
 import pandas as pd
-from openpyxl.utils import range_boundaries
+from openpyxl.utils import absolute_coordinate, quote_sheetname, range_boundaries
+from openpyxl.styles import Alignment
+from openpyxl.workbook.defined_name import DefinedName
 
 from .classes import check_formula, shapes, values
 
@@ -343,3 +345,20 @@ def classified_info_handling(value, table_of_contents, pyxl):
                     cell = pyxl["Table of Contents & Validation"].cell
                     if not check_formula(cell(row=row, column=4)):
                         cell(row=row, column=4).value = True
+
+
+def create_or_update_migration_status(pyxl) -> None:
+    """Create or update the name range template_migration_status in the Introduction sheet, cell D1.
+    The cell returns TRUE if the migration process has been completed, but will be processed as None in openpyxl (data_only=True) mode
+    if the workbook has not been opened after migration.
+    The name range is used as starting check in the Converter, in the case of workbooks of the newest version."""
+
+    if pyxl.defined_names.get("template_migration_status") is None:
+        ws = pyxl["Introduction"]
+        ref = f"{quote_sheetname(ws.title)}!{absolute_coordinate('D2')}"
+        defn = DefinedName(name="template_migration_status", attr_text=ref)
+
+        ws.defined_names.add(defn)
+        ws["D1"].value = "Migration status"
+        ws["D1"].alignment = Alignment(horizontal="center")
+        ws["D2"].value = "=AND(TRUE,OR(FALSE,TRUE))"
