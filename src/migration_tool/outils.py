@@ -358,7 +358,7 @@ def create_or_update_migration_status(pyxl) -> None:
         ref = f"{quote_sheetname(ws.title)}!{absolute_coordinate('D2')}"
         defn = DefinedName(name="template_migration_status", attr_text=ref)
 
-        ws.defined_names.add(defn)
+        pyxl.defined_names.add(defn)
         ws["D1"].value = "Migration status"
         ws["D1"].alignment = Alignment(horizontal="center")
         ws["D2"].value = "=AND(TRUE,OR(FALSE,TRUE))"
