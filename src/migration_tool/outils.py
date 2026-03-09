@@ -1,9 +1,8 @@
-from typing import Dict
-
 import pandas as pd
-from openpyxl.utils import absolute_coordinate, quote_sheetname, range_boundaries
 from openpyxl.styles import Alignment
+from openpyxl.utils import absolute_coordinate, quote_sheetname, range_boundaries
 from openpyxl.workbook.defined_name import DefinedName
+from typing import Dict
 
 from .classes import check_formula, shapes, values
 
