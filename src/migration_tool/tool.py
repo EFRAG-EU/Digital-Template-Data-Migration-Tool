@@ -66,7 +66,7 @@ def migrate_workbook(
         old_wb_obj = load_workbook_quietly(old_wb, data_only=False)
         old_wb_obj_values = load_workbook_quietly(old_wb, data_only=True)
     else:
-        raise ValueError(
+        raise TypeError(
             f"old_wb [{type(old_wb)}] must be a file path or an openpyxl Workbook"
         )
 
