@@ -2,7 +2,9 @@ from typing import Dict
 
 import pandas as pd
 from openpyxl import Workbook
-from openpyxl.utils import range_boundaries
+from openpyxl.styles import Alignment
+from openpyxl.utils import absolute_coordinate, quote_sheetname, range_boundaries
+from openpyxl.workbook.defined_name import DefinedName
 
 from .classes import check_formula, shapes, values
 
@@ -312,13 +314,13 @@ def paste_values(pyxl, df, NR=None, table_of_contents=None, version=None):
                 continue
 
         if shape.isonecell():
-            if value.values() is not None:
+            if value.values() is not None:  # avoiding pasting formulas
                 rng.value = value.topleft()  # when it's one cell, paste topleft
 
         else:
             tuple_to_check = (shape.left(), shape.top())
 
-            if value.values() is not None:  # avoiding formulas
+            if value.values() is not None:  # avoiding pasting formulas
                 if (
                     tuple_to_check in merged_loc[df["sheets"][i]].values.tolist()
                 ):  # merged cells check
@@ -437,3 +439,18 @@ def adjust_data_missing_first2versions(
         add_TrueOrFalse_to_df(
             missingNR_df_new_wv, {"sheet": "Fuel Converter", "rng": "$D$23"}, False
         )
+def create_or_update_migration_status(pyxl) -> None:
+    """Create or update the name range template_migration_status in the Introduction sheet, cell D1.
+    The cell returns TRUE if the migration process has been completed, but will be processed as None in openpyxl (data_only=True) mode
+    if the workbook has not been opened after migration.
+    The name range is used as starting check in the Converter, in the case of workbooks of the newest version."""
+
+    if pyxl.defined_names.get("template_migration_status") is None:
+        ws = pyxl["Introduction"]
+        ref = f"{quote_sheetname(ws.title)}!{absolute_coordinate('D2')}"
+        defn = DefinedName(name="template_migration_status", attr_text=ref)
+
+        pyxl.defined_names.add(defn)
+        ws["D1"].value = "Migration status"
+        ws["D1"].alignment = Alignment(horizontal="center")
+        ws["D2"].value = "=AND(TRUE,OR(FALSE,TRUE))"

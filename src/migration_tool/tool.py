@@ -20,6 +20,7 @@ from .outils import (
     check_status_incomplete,
     clean_NR_with_no_data,
     copy_values,
+    create_or_update_migration_status,
     create_table_of_contents,
     paste_values,
 )
@@ -128,6 +129,8 @@ def migrate_workbook(
         table_of_contents=table_of_contents,
         version=version_cell,
     )
+
+    create_or_update_migration_status(new_wb_empty)
 
     elapsed = time.time() - start_time
     return new_wb_empty, elapsed, list_migrationissues
