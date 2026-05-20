@@ -1,6 +1,7 @@
 from typing import Dict
 
 import pandas as pd
+from openpyxl import Workbook
 from openpyxl.utils import range_boundaries
 
 from .classes import check_formula, shapes, values
@@ -32,13 +33,13 @@ def create_table_of_contents(wb_values) -> Dict[str, int]:
     """Create a dict with keys as names of ToC sections and values as the corresponding row numbers in 'Table of Contents & Validation' sheet.
     If there is any change in where the ToC is located in the sheet, or changes in the range of cells utilised for it, this function should be updated."""
     _keys = [
-        cell[0].value for cell in wb_values["Table of Contents & Validation"]["B9:B68"]
+        cell[0].value for cell in wb_values["Table of Contents & Validation"]["B9:B70"]
     ]
-    _values = list(range(9, 69))
+    _values = list(range(9, 71))  # row numbers
     return dict(zip(_keys, _values))
 
 
-def access_NR_table(pyxl_NR, sheets=None):
+def access_NR_table(pyxl_NR, sheets=None) -> tuple[pd.DataFrame, list | None]:
     """Access names, cell references and coordinates of each name range from the python object containing name ranges.
     Returns a (pandas) DataFrame.
     There were some VSME samples that, after processing in openpyxl, returned wrong sheet references for their name ranges (e.g. "[1]General Information" instead of "General Information");
@@ -82,7 +83,7 @@ def access_NR_table(pyxl_NR, sheets=None):
     if sheets is not None:
         return df_populated, list_NR_issues
     else:
-        return df_populated
+        return df_populated, None
 
 
 def access_missingNR_table(df_missingNR, version_cell):
@@ -230,7 +231,7 @@ def get_indexes_of_NAs(df, column) -> list[int]:
     return df.loc[df[column].isna()].index.tolist()
 
 
-def copy_values(pyxl, df, key=None):
+def copy_values(pyxl, df, key=None) -> pd.DataFrame | pd.Series:
     """Copy values from openpyxl workbook based on cell shapes, returns DataFrame with col of cell values.
     2 cases: 1) if key is provided, a DataFrame with 2 cols (name ranges and values) is returned;
              2) if key is not provided, just the cell values are returned as a pandas Series."""
@@ -261,7 +262,7 @@ def copy_values(pyxl, df, key=None):
         return df["cell_values"]
 
 
-def paste_values(pyxl, df, NR=None, table_of_contents=None):
+def paste_values(pyxl, df, NR=None, table_of_contents=None, version=None):
     """Paste values from a DataFrame column into an openpyxl workbook.
 
     Treatment for merged cells (merged only across columns in VSMEs):
@@ -302,11 +303,12 @@ def paste_values(pyxl, df, NR=None, table_of_contents=None):
                 df["name_ranges"][i]
                 == "ListOfOmittedDisclosuresDeemedToBeClassifiedOrSensitiveInformation"
             ):
-                classified_info_handling(value, table_of_contents, pyxl)
+                classified_info_handling(value, table_of_contents, pyxl, version)
                 continue
 
         if shape.isonecell():
-            rng.value = value.topleft()  # when it's one cell, paste topleft
+            if value.values() is not None:
+                rng.value = value.topleft()  # when it's one cell, paste topleft
 
         else:
             tuple_to_check = (shape.left(), shape.top())
@@ -327,19 +329,104 @@ def paste_values(pyxl, df, NR=None, table_of_contents=None):
                     value.paste(sheet, shape)
 
 
-def classified_info_handling(value, table_of_contents, pyxl):
+def classified_info_handling(value, table_of_contents, pyxl, version) -> None:
     """Specific handling for the list of classified information (see new functionality added in version 1.2.0).
     Check where the first 2 characters (ex B1) of "value" (choices about classified info in old versions) match in the ToC,
-    and add True in the corresponding row in col D of new "Table of Contents & Validation" sheet where formulas are not detected (formula cells get automatically updated upon opening new version)."""
+    and add True in the corresponding row in col D of new "Table of Contents & Validation" sheet where formulas are not detected (formula cells get automatically updated upon opening new version).
+
+    For newer versions, matches look at the whole string (careful if ToC changes again), and headers are not pasted."""
+
+    headers_not_to_touch = [
+        "B1 - Basis for Preparation",
+        "B3 - Energy and greenhouse gas emissions",
+        "B5 - Biodiversity",
+        "B6 - Water",
+        "B7 - Resource use, circular economy and waste management",
+        "B8 - Workforce - General characteristics",
+        "B10 - Workforce - Remuneration, collective bargaining and training",
+        "C3 - GHG reduction targets and climate transition",
+        "C8 - Revenues from certain activities and exclusion from EU reference benchmarks",
+    ]
 
     for input in value.values():
         if input[0] is not None:
-            match = [
-                s for s in table_of_contents.keys() if input[0][0:2] in s
-            ]  # matches based on first 2 characters
+            if version in ["1.0.0", "1.0.1", "1.1.0", "1.1.1"]:
+                match = [
+                    s for s in table_of_contents.keys() if input[0][0:2] in s
+                ]  # matches based on first 2 characters
+            else:
+                match = [
+                    s
+                    for s in table_of_contents.keys()
+                    if input[0] == s and input[0] not in headers_not_to_touch
+                ]
+                # overall match for newer versions (needed)
+
             if match:
                 row_n = [table_of_contents.get(key) for key in match]
                 for row in row_n:
                     cell = pyxl["Table of Contents & Validation"].cell
                     if not check_formula(cell(row=row, column=4)):
                         cell(row=row, column=4).value = True
+
+
+def adjust_classified_info(
+    df: pd.DataFrame, df_values: pd.DataFrame | pd.Series, px_values: Workbook
+) -> None:
+    """Copy classified info values for version where data is already in cells with formulas.
+    Cannot do this in copy_values or build_values method because it needs to be done on value-only workbooks.
+    Needed to migrate classified information choices, which in newer templates are selected via the ToC."""
+
+    sheet_generalinfo = px_values["General Information"]
+    shape_classifiedinfo = df.loc[
+        df["name_ranges"]
+        == "ListOfOmittedDisclosuresDeemedToBeClassifiedOrSensitiveInformation",
+        "cell_shapes",
+    ].item()
+    values_classifiedinfo = values(shape_classifiedinfo.build_values(sheet_generalinfo))
+
+    df_values.loc[
+        df["name_ranges"]
+        == "ListOfOmittedDisclosuresDeemedToBeClassifiedOrSensitiveInformation",
+        "cell_values",
+    ] = values_classifiedinfo
+
+
+def adjust_data_missing_first2versions(
+    df_new_wv: pd.DataFrame, missingNR_df_new_wv: pd.DataFrame, old_wb: Workbook
+) -> None:
+
+    def add_TrueOrFalse_to_df(df, comb, bool) -> None:
+        sheet: str = comb["sheet"]
+        rng: str = comb["rng"]
+        val = values([bool])
+        df.loc[df["sheets"] == sheet & df["cell_ranges"] == rng, "cell_values"] = val
+
+    # resolving whether undertaking operates in more than one country
+    length = (
+        df_new_wv.loc[
+            df_new_wv["name_ranges"] == "CountryOfEmploymentContractAxis",
+            "cell_values",
+        ]
+        .values[0]
+        .count_uniques()
+    )
+    if length > 2:
+        add_TrueOrFalse_to_df(
+            missingNR_df_new_wv, {"sheet": "Social Disclosures", "rng": "$E$27"}, True
+        )
+    else:
+        add_TrueOrFalse_to_df(
+            missingNR_df_new_wv, {"sheet": "Social Disclosures", "rng": "$E$27"}, False
+        )
+
+    # resolving Fuel Converter transfer cell
+    first_fuel = old_wb["Fuel Converter"]["B10"].value
+    if first_fuel:
+        add_TrueOrFalse_to_df(
+            missingNR_df_new_wv, {"sheet": "Fuel Converter", "rng": "$D$23"}, True
+        )
+    else:
+        add_TrueOrFalse_to_df(
+            missingNR_df_new_wv, {"sheet": "Fuel Converter", "rng": "$D$23"}, False
+        )

@@ -149,9 +149,11 @@ class values(object):
             "December": 12,
         }
         if self.values() is not None:
-            self.values()[1][0] = month_dict[
-                self.values()[1][0]
-            ]  # second row of each element (see the Template)]
+            month = self.values()[1][0]
+            if month:
+                self.values()[1][0] = month_dict[
+                    month
+                ]  # second row of each element (see the Template)]
 
     def count_uniques(self):
         list = self.values()
