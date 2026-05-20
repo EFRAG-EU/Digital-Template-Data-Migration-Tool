@@ -149,6 +149,11 @@ def apply_changes_NR(df, version_cell, version_cell_new):
             "DescriptionOfTheEffectiveParticipationOfWorkersUsersOrOtherInterestedPartiesOrCommunitiesInGovernance",
             "MostSeniorLevelAccountableForImplementationOfPolicies",
         ],
+        "1.3.0": [
+            "NumberOfPermanentContractEmployees",
+            "DescriptionOfTheEffectiveParticipationOfWorkersUsersOrOtherInterestedPartiesOrCommunitiesInGovernance",
+            "MostSeniorLevelAccountableForImplementationOfPolicies",
+        ],
     }
 
     df_of_changes_NR = pd.DataFrame(
@@ -399,8 +404,10 @@ def adjust_data_missing_first2versions(
     def add_TrueOrFalse_to_df(df, comb, bool) -> None:
         sheet: str = comb["sheet"]
         rng: str = comb["rng"]
-        val = values([bool])
-        df.loc[df["sheets"] == sheet & df["cell_ranges"] == rng, "cell_values"] = val
+        val = values([[bool]])
+        df.loc[(df["sheets"] == sheet) & (df["cell_ranges"] == rng), "cell_values"] = (
+            val
+        )
 
     # resolving whether undertaking operates in more than one country
     length = (

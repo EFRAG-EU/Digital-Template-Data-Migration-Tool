@@ -79,7 +79,7 @@ def migrate_workbook(
 
     # load new empty Template
     with as_file(
-        files("migration_tool.data").joinpath("VSME-Digital-Template-1.2.1.xlsx")
+        files("migration_tool.data").joinpath("VSME-Digital-Template-1.3.0.xlsx")
     ) as path:
         new_wb_empty = load_workbook_quietly(path, data_only=False)
         new_wb_empty_values = load_workbook_quietly(path, data_only=True)
