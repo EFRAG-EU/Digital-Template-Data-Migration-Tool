@@ -16,6 +16,7 @@ from .outils import (
     adjust_classified_info,
     adjust_data_missing_first2versions,
     apply_changes_NR,
+    assess_energyConsumption_validation,
     change_wastes,
     check_status_incomplete,
     clean_NR_with_no_data,
@@ -120,6 +121,11 @@ def migrate_workbook(
 
     if version_cell in ["1.0.0", "1.0.1"]:
         adjust_data_missing_first2versions(df_new_wv, missingNR_df_new_wv, old_wb_obj)
+
+    if version_cell in ["1.0.0", "1.0.1", "1.1.0"]:
+        issue_energyCons = assess_energyConsumption_validation(missingNR_df_new_wv)
+        if issue_energyCons:
+            list_migrationissues.extend(issue_energyCons)
 
     paste_values(new_wb_empty, missingNR_df_new_wv)
     paste_values(

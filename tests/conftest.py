@@ -38,6 +38,10 @@ EXPECTED_ISSUES: dict[str, list[str]] = {
     "VSME-Digital-Template-Sample-1.0.0.xlsx": [
         "Waste category --        101102 Non-Hazardous Waste - Waste glass-- not present in new Regulation. Please, see https://eur-lex.europa.eu/legal-content/EN/TXT/PDF/?uri=CELEX:32014D0955",
         "Waste category --        040201 Non-Hazardous Waste - Waste from unprocessed textile fibres and other natural fibrous substances mainly of vegetable origin-- not present in new Regulation. Please, see https://eur-lex.europa.eu/legal-content/EN/TXT/PDF/?uri=CELEX:32014D0955",
+        "Issues in Energy Consumption sums. Please check the Environmental Disclosures and the Fuel Converter sheets.",
+    ],
+    "VSME-Digital-Template-Sample-1.0.0_withoutdate.xlsx": [
+        "Issues in Energy Consumption sums. Please check the Environmental Disclosures and the Fuel Converter sheets.",
     ],
     "VSME-Digital-Template-Sample-1.0.1.xlsx": [
         "Waste category --        101102 Non-Hazardous Waste - Waste glass-- not present in new Regulation. Please, see https://eur-lex.europa.eu/legal-content/EN/TXT/PDF/?uri=CELEX:32014D0955",

@@ -439,6 +439,8 @@ def adjust_data_missing_first2versions(
         add_TrueOrFalse_to_df(
             missingNR_df_new_wv, {"sheet": "Fuel Converter", "rng": "$D$23"}, False
         )
+
+
 def create_or_update_migration_status(pyxl) -> None:
     """Create or update the name range template_migration_status in the Introduction sheet, cell D1.
     The cell returns TRUE if the migration process has been completed, but will be processed as None in openpyxl (data_only=True) mode
@@ -454,3 +456,24 @@ def create_or_update_migration_status(pyxl) -> None:
         ws["D1"].value = "Migration status"
         ws["D1"].alignment = Alignment(horizontal="center")
         ws["D2"].value = "=AND(TRUE,OR(FALSE,TRUE))"
+
+
+def assess_energyConsumption_validation(df: pd.DataFrame) -> list[str] | None:
+    """Fuel Converter for first 3 versions does not sum from the third added fuel.
+    This function checks whether a third fuel (in C12) has been added,
+    and returns an issue to be added to the migration issues list since
+    the newest version should display a validation error next to the energy cons. cells."""
+
+    if (
+        df.loc[
+            (df["sheets"] == "Fuel Converter") & (df["cell_ranges"] == "$C$12"),
+            "cell_values",
+        ]
+        .tolist()[0]
+        .topleft()
+    ):
+        return [
+            "Issues in Energy Consumption sums. Please check the Environmental Disclosures and the Fuel Converter sheets."
+        ]
+    else:
+        return None
