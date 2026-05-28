@@ -10,11 +10,13 @@ import pandas as pd
 from openpyxl import Workbook
 from openpyxl import load_workbook as openpyxl_load_workbook
 
-from .classes import values
 from .outils import (
     access_missingNR_table,
     access_NR_table,
+    adjust_classified_info,
+    adjust_data_missing_first2versions,
     apply_changes_NR,
+    assess_energyConsumption_validation,
     change_wastes,
     check_status_incomplete,
     clean_NR_with_no_data,
@@ -79,7 +81,7 @@ def migrate_workbook(
 
     # load new empty Template
     with as_file(
-        files("migration_tool.data").joinpath("VSME-Digital-Template-1.2.0.xlsx")
+        files("migration_tool.data").joinpath("VSME-Digital-Template-1.3.0.xlsx")
     ) as path:
         new_wb_empty = load_workbook_quietly(path, data_only=False)
         new_wb_empty_values = load_workbook_quietly(path, data_only=True)
@@ -92,9 +94,9 @@ def migrate_workbook(
     old_wb_sheets = [sheet.title for sheet in old_wb_obj.worksheets]
 
     df_old, sheets_issues = access_NR_table(old_wb_obj.defined_names, old_wb_sheets)
-    if len(sheets_issues) > 0:
+    if isinstance(sheets_issues, list) and sheets_issues:
         list_migrationissues.extend(sheets_issues)
-    df_new = access_NR_table(new_wb_empty.defined_names)
+    df_new, _ = access_NR_table(new_wb_empty.defined_names)
 
     missingNR_df_old = access_missingNR_table(missingNR_df, version_cell)
     missingNR_df_new = access_missingNR_table(missingNR_df, version_cell_new)
@@ -103,8 +105,11 @@ def migrate_workbook(
     missingNR_df_old_values = copy_values(old_wb_obj, missingNR_df_old, key=None)
 
     if version_cell == "1.0.0":
-        for position in [0, 1, 6]:
+        for position in [0, 1, 6]:  # careful if rows in missingNR_df change
             missingNR_df_old_values[position].convert_month_to_numbers()
+
+    if version_cell not in ["1.0.0", "1.0.1", "1.1.0", "1.1.1"]:
+        adjust_classified_info(df_old, df_old_wv, old_wb_obj_values)
 
     df_old_tomerge = apply_changes_NR(df_old_wv, version_cell, version_cell_new)
     df_old_tomerge = clean_NR_with_no_data(df_old_tomerge)
@@ -115,31 +120,21 @@ def migrate_workbook(
     missingNR_df_new_wv = pd.concat([missingNR_df_new, missingNR_df_old_values], axis=1)
 
     if version_cell in ["1.0.0", "1.0.1"]:
-        length = (
-            df_new_wv.loc[
-                df_new_wv["name_ranges"] == "CountryOfEmploymentContractAxis",
-                "cell_values",
-            ]
-            .values[0]
-            .count_uniques()
-        )
-        if (
-            length > 2
-        ):  # ignore PyLance warning for pandas dataframes, no issues at runtime
-            missingNR_df_new_wv.loc[
-                (missingNR_df_new_wv["sheets"] == "Social Disclosures")
-                & (missingNR_df_new_wv["cell_ranges"] == "$E$27"),
-                "cell_values",
-            ] = values([[True]])
-        else:
-            missingNR_df_new_wv.loc[
-                (missingNR_df_new_wv["sheets"] == "Social Disclosures")
-                & (missingNR_df_new_wv["cell_ranges"] == "$E$27"),
-                "cell_values",
-            ] = values([[False]])
+        adjust_data_missing_first2versions(df_new_wv, missingNR_df_new_wv, old_wb_obj)
+
+    if version_cell in ["1.0.0", "1.0.1", "1.1.0"]:
+        issue_energyCons = assess_energyConsumption_validation(missingNR_df_new_wv)
+        if issue_energyCons:
+            list_migrationissues.extend(issue_energyCons)
 
     paste_values(new_wb_empty, missingNR_df_new_wv)
-    paste_values(new_wb_empty, df_new_wv, NR=True, table_of_contents=table_of_contents)
+    paste_values(
+        new_wb_empty,
+        df_new_wv,
+        NR=True,
+        table_of_contents=table_of_contents,
+        version=version_cell,
+    )
 
     create_or_update_migration_status(new_wb_empty)
 
