@@ -1,6 +1,6 @@
 [project]
 name = "migration_tool"
-version = "0.1.3"
+version = "0.1.4"
 description = "Migration tool package, used in EFRAG's Digital Converter"
 authors = [ 
     { name = "Andrea Baschiera", email = "andrea.baschiera@efrag.org" }, 
