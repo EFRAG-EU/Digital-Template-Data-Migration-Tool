@@ -13,7 +13,9 @@ def check_status_incomplete(openpyxl_obj) -> bool:
     """Check if the workbook is filled out or not based on the value of the 'Status' cell in the 'Table of Contents & Validation' sheet"""
 
     status_cell = openpyxl_obj["Table of Contents & Validation"]["C3"].value
+    "INCOMPLETE, INCOMPLETE, UFÆRDIG , ONVOLLEDIG, INCOMPLET, UNVOLLSTÄNDIG, NEAMHIOMLÁN, INCOMPLETO, NEBAIGTA, NIEKOMPLETNY, INCOMPLETO, NEPOPOLNO, INCOMPLETO"
     if status_cell in [
+        "INCOMPLETE",
         "INCOMPLETE",
         "UFÆRDIG",
         "ONVOLLEDIG",
@@ -24,6 +26,7 @@ def check_status_incomplete(openpyxl_obj) -> bool:
         "NEBAIGTA",
         "NIEKOMPLETNY",
         "INCOMPLETO",
+        "NEPOPOLNO",
         "INCOMPLETO",
     ]:
         return True
@@ -225,7 +228,12 @@ def clean_NR_with_no_data(df):
         "template_reporting_entity_identifier",
         "template_currency",
     ]
-    df_toattach = df[df["name_ranges"].isin(list_of_NRs_toNOTremove)]
+    df_toattach = pd.concat(
+        [
+            df[df["name_ranges"].isin(list_of_NRs_toNOTremove)],
+            df[df["name_ranges"].str.contains("template_checkbox", na=False)],
+        ]
+    )
 
     for kw in list_of_keywords:
         df = df[~df["name_ranges"].str.contains(kw, na=False)]
@@ -341,19 +349,8 @@ def classified_info_handling(value, table_of_contents, pyxl, version) -> None:
     Check where the first 2 characters (ex B1) of "value" (choices about classified info in old versions) match in the ToC,
     and add True in the corresponding row in col D of new "Table of Contents & Validation" sheet where formulas are not detected (formula cells get automatically updated upon opening new version).
 
-    For newer versions, matches look at the whole string (careful if ToC changes again), and headers are not pasted."""
-
-    headers_not_to_touch = [
-        "B1 - Basis for Preparation",
-        "B3 - Energy and greenhouse gas emissions",
-        "B5 - Biodiversity",
-        "B6 - Water",
-        "B7 - Resource use, circular economy and waste management",
-        "B8 - Workforce - General characteristics",
-        "B10 - Workforce - Remuneration, collective bargaining and training",
-        "C3 - GHG reduction targets and climate transition",
-        "C8 - Revenues from certain activities and exclusion from EU reference benchmarks",
-    ]
+    For migrations from 1.2.0 to newer versions, the cells are hard-coded in missingNR_df.
+    """
 
     for input in value.values():
         if input[0] is not None:
@@ -361,20 +358,13 @@ def classified_info_handling(value, table_of_contents, pyxl, version) -> None:
                 match = [
                     s for s in table_of_contents.keys() if input[0][0:2] in s
                 ]  # matches based on first 2 characters
-            else:
-                match = [
-                    s
-                    for s in table_of_contents.keys()
-                    if input[0] == s and input[0] not in headers_not_to_touch
-                ]
-                # overall match for newer versions (needed)
 
-            if match:
-                row_n = [table_of_contents.get(key) for key in match]
-                for row in row_n:
-                    cell = pyxl["Table of Contents & Validation"].cell
-                    if not check_formula(cell(row=row, column=4)):
-                        cell(row=row, column=4).value = True
+                if match:
+                    row_n = [table_of_contents.get(key) for key in match]
+                    for row in row_n:
+                        cell = pyxl["Table of Contents & Validation"].cell
+                        if not check_formula(cell(row=row, column=4)):
+                            cell(row=row, column=4).value = True
 
 
 def adjust_classified_info(

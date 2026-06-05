@@ -123,10 +123,11 @@ class values(object):
                 list.append(self.values()[row][0])
             return list
 
-    def enlarged_range_correction(self, shape):
-        if self.height() != shape.rows():
-            for i in range(shape.rows() - self.height()):
-                self.values().append([None])
+    def enlarged_range_correction(self, shape) -> None:
+        if shape.shape:
+            if self.height() != shape.rows():
+                for i in range(shape.rows() - self.height()):
+                    self.values().append([None])
 
     def add_checkboxes(self):
         for row in range(self.height()):
@@ -160,14 +161,15 @@ class values(object):
         return len(set([item for sublist in list for item in sublist]))
 
     def paste(self, sheet, shape):
-        if self.width() == 1:
-            for row in range(shape.top(), shape.bottom() + 1):
-                sheet.cell(row=row, column=shape.left()).value = self.values()[
-                    row - shape.top()
-                ][0]
-        else:
-            for row in range(shape.top(), shape.bottom() + 1):
-                for col in range(shape.left(), shape.right() + 1):
-                    sheet.cell(row=row, column=col).value = self.values()[
+        if shape.shape:
+            if self.width() == 1:
+                for row in range(shape.top(), shape.bottom() + 1):
+                    sheet.cell(row=row, column=shape.left()).value = self.values()[
                         row - shape.top()
-                    ][col - shape.left()]
+                    ][0]
+            else:
+                for row in range(shape.top(), shape.bottom() + 1):
+                    for col in range(shape.left(), shape.right() + 1):
+                        sheet.cell(row=row, column=col).value = self.values()[
+                            row - shape.top()
+                        ][col - shape.left()]
