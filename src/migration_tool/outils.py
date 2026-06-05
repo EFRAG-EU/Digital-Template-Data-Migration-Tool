@@ -228,7 +228,12 @@ def clean_NR_with_no_data(df):
         "template_reporting_entity_identifier",
         "template_currency",
     ]
-    df_toattach = df[df["name_ranges"].isin(list_of_NRs_toNOTremove)]
+    df_toattach = pd.concat(
+        [
+            df[df["name_ranges"].isin(list_of_NRs_toNOTremove)],
+            df[df["name_ranges"].str.contains("template_checkbox", na=False)],
+        ]
+    )
 
     for kw in list_of_keywords:
         df = df[~df["name_ranges"].str.contains(kw, na=False)]
