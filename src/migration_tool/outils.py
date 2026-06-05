@@ -13,7 +13,9 @@ def check_status_incomplete(openpyxl_obj) -> bool:
     """Check if the workbook is filled out or not based on the value of the 'Status' cell in the 'Table of Contents & Validation' sheet"""
 
     status_cell = openpyxl_obj["Table of Contents & Validation"]["C3"].value
+    "INCOMPLETE, INCOMPLETE, UFÆRDIG , ONVOLLEDIG, INCOMPLET, UNVOLLSTÄNDIG, NEAMHIOMLÁN, INCOMPLETO, NEBAIGTA, NIEKOMPLETNY, INCOMPLETO, NEPOPOLNO, INCOMPLETO"
     if status_cell in [
+        "INCOMPLETE",
         "INCOMPLETE",
         "UFÆRDIG",
         "ONVOLLEDIG",
@@ -24,6 +26,7 @@ def check_status_incomplete(openpyxl_obj) -> bool:
         "NEBAIGTA",
         "NIEKOMPLETNY",
         "INCOMPLETO",
+        "NEPOPOLNO",
         "INCOMPLETO",
     ]:
         return True
