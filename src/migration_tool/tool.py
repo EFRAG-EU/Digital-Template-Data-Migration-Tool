@@ -91,11 +91,10 @@ def migrate_workbook(
     version_cell = old_wb_obj["Introduction"].cell(row=1, column=3).value
     version_cell_new = new_wb_empty["Introduction"].cell(row=1, column=3).value
 
-    old_wb_sheets = [sheet.title for sheet in old_wb_obj.worksheets]
+    old_wb_sheet_names = [sheet.title for sheet in old_wb_obj.worksheets]
 
-    df_old, sheets_issues = access_NR_table(old_wb_obj.defined_names, old_wb_sheets)
-    if isinstance(sheets_issues, list) and sheets_issues:
-        list_migrationissues.extend(sheets_issues)
+    df_old, sheets_issues = access_NR_table(old_wb_obj.defined_names, old_wb_sheet_names)
+    list_migrationissues.extend(sheets_issues)
     df_new, _ = access_NR_table(new_wb_empty.defined_names)
 
     missingNR_df_old = access_missingNR_table(missingNR_df, version_cell)

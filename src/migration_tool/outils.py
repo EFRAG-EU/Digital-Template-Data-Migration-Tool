@@ -44,51 +44,44 @@ def create_table_of_contents(wb_values) -> Dict[str, int]:
     return dict(zip(_keys, _values))
 
 
-def access_NR_table(pyxl_NR, sheets=None) -> tuple[pd.DataFrame, list | None]:
+def access_NR_table(pyxl_NR, old_sheet_names: list[str] | None = None) -> tuple[pd.DataFrame, list]:
     """Access names, cell references and coordinates of each name range from the python object containing name ranges.
     Returns a (pandas) DataFrame.
     There were some VSME samples that, after processing in openpyxl, returned wrong sheet references for their name ranges (e.g. "[1]General Information" instead of "General Information");
     To handle this, a list of issues (str explaining where the issue is) is returned alongside the DataFrame."""
 
-    list_NR = list(pyxl_NR.keys())
-    list_sheets = []
-    list_ranges = []
-    list_shapes = []
+    rows: list[tuple[str, str | None, str | None, shapes]] = []
+    issues: list[str] = []
 
-    list_NR_issues = []
-
-    for NR in list_NR:
-        list_temp = pyxl_NR[NR].attr_text.split("!")[0].replace("'", "")
-        if sheets is not None and list_temp not in sheets:
-            list_NR_issues.append(
-                f"Name range '{NR}' refers to sheet '{list_temp}' which is not present in the old workbook. This name range has been ignored in the migration."
+    for NR, dn in pyxl_NR.items():
+        try:
+            destinations = list(dn.destinations)
+        except AttributeError:
+            issues.append(
+                f"Name range '{NR}' has an unreadable destination (value: {dn.attr_text!r}). This name range has been ignored in the migration."
             )
-            list_temp = None
-        list_sheets.append(list_temp)
+            rows.append((NR, None, None, shapes(None)))
+            continue
 
-        rng_temp = pyxl_NR[NR].attr_text.split("!")[1]
-        if rng_temp == "#REF":  # handling #REF name ranges (in Translations sheet)
-            rng_temp = None
-        list_ranges.append(rng_temp)
+        if len(destinations) != 1:
+            issues.append(
+                f"Name range '{NR}' has {len(destinations)} destinations (expected 1; value: {dn.attr_text!r}). This name range has been ignored in the migration."
+            )
+            rows.append((NR, None, None, shapes(None)))
+            continue
 
-    for rng in list_ranges:
-        if rng is None:
-            list_shapes.append(shapes(None))
-        else:
-            list_shapes.append(shapes(range_boundaries(rng)))
+        sheet, rng = destinations[0]
+        if old_sheet_names is not None and sheet not in old_sheet_names:
+            issues.append(
+                f"Name range '{NR}' refers to sheet '{sheet}' which is not present in the old workbook. This name range has been ignored in the migration."
+            )
+            sheet = None
 
-    df_populated = pd.DataFrame(
-        {
-            "name_ranges": list_NR,
-            "sheets": list_sheets,
-            "cell_ranges": list_ranges,
-            "cell_shapes": list_shapes,
-        }
-    )
-    if sheets is not None:
-        return df_populated, list_NR_issues
-    else:
-        return df_populated, None
+        rng = rng or None
+        rows.append((NR, sheet, rng, shapes(range_boundaries(rng)) if rng else shapes(None)))
+
+    df_populated = pd.DataFrame(rows, columns=["name_ranges", "sheets", "cell_ranges", "cell_shapes"])
+    return df_populated, issues
 
 
 def access_missingNR_table(df_missingNR, version_cell):
