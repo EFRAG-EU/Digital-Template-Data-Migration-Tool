@@ -120,12 +120,21 @@ class NullShape(Shape):
 def make_shape(value: str | tuple[int, int, int, int] | None) -> Shape:
     """Build a :class:`Shape` from an Excel range string (e.g. ``"B2:D4"``) or a
     ready-made coordinate tuple; ``None`` or an empty range yields a
-    :class:`NullShape`."""
-    if not value:
-        return NullShape()
-    if isinstance(value, str):
-        value = range_boundaries(value)
-    return Shape(value)
+    :class:`NullShape`.
+
+    Raises :class:`ValueError` if a range string has no fixed bounds (e.g. a
+    whole-column ``"A:A"`` reference, where ``range_boundaries`` returns ``None``
+    for the open dimensions)."""
+    match value:
+        case None | "" | ():
+            return NullShape()
+        case str():
+            left, top, right, bottom = range_boundaries(value)
+            if left is None or top is None or right is None or bottom is None:
+                raise ValueError(f"Range {value!r} does not have fixed boundaries")
+            return Shape((left, top, right, bottom))
+        case _:
+            return Shape(value)
 
 
 class Value:
