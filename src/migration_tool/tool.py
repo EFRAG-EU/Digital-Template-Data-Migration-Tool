@@ -10,6 +10,7 @@ import pandas as pd
 from openpyxl import Workbook
 from openpyxl import load_workbook as openpyxl_load_workbook
 
+from .decorators import cached_copy
 from .outils import (
     access_missingNR_table,
     access_NR_table,
@@ -28,6 +29,8 @@ from .outils import (
 
 FilePathOrBinaryBlob: TypeAlias = str | Path | io.BufferedIOBase
 
+NEW_TEMPLATE_NAME = "VSME-Digital-Template-1.3.0.xlsx"
+
 
 def load_workbook_quietly(
     file: FilePathOrBinaryBlob, data_only: bool = False
@@ -40,6 +43,26 @@ def load_workbook_quietly(
             module=r"openpyxl\.worksheet\._reader",
         )
         return openpyxl_load_workbook(file, data_only=data_only)
+
+
+@cached_copy
+def _mapping_wastes() -> pd.DataFrame:
+    return pd.read_pickle(
+        files("migration_tool.data").joinpath("Mapping_wastes.pkl").open("rb")
+    )
+
+
+@cached_copy
+def _missing_nr_df() -> pd.DataFrame:
+    return pd.read_pickle(
+        files("migration_tool.data").joinpath("missingNR_df.pkl").open("rb")
+    )
+
+
+@cached_copy
+def _table_of_contents() -> dict[str, int]:
+    with as_file(files("migration_tool.data").joinpath(NEW_TEMPLATE_NAME)) as path:
+        return create_table_of_contents(load_workbook_quietly(path, data_only=True))
 
 
 def migrate_workbook_as_bytes(
@@ -56,12 +79,8 @@ def migrate_workbook(
 ) -> tuple[Workbook, float, list[str]]:
     start_time = time.time()
 
-    mapping_wastes = pd.read_pickle(
-        files("migration_tool.data").joinpath("Mapping_wastes.pkl").open("rb")
-    )
-    missingNR_df = pd.read_pickle(
-        files("migration_tool.data").joinpath("missingNR_df.pkl").open("rb")
-    )
+    mapping_wastes = _mapping_wastes()
+    missingNR_df = _missing_nr_df()
 
     # load old filled-out Template
     if isinstance(old_wb, FilePathOrBinaryBlob):
@@ -79,14 +98,11 @@ def migrate_workbook(
             "The old workbook is incomplete. Migration happened only for the filled-out cells, but some data might be missing."
         )
 
-    # load new empty Template
-    with as_file(
-        files("migration_tool.data").joinpath("VSME-Digital-Template-1.3.0.xlsx")
-    ) as path:
+    # load new empty Template (mutated into the output below, so always fresh)
+    with as_file(files("migration_tool.data").joinpath(NEW_TEMPLATE_NAME)) as path:
         new_wb_empty = load_workbook_quietly(path, data_only=False)
-        new_wb_empty_values = load_workbook_quietly(path, data_only=True)
 
-    table_of_contents = create_table_of_contents(new_wb_empty_values)
+    table_of_contents = _table_of_contents()
 
     version_cell = old_wb_obj["Introduction"].cell(row=1, column=3).value
     version_cell_new = new_wb_empty["Introduction"].cell(row=1, column=3).value
