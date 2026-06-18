@@ -142,6 +142,12 @@ class TestMakeShape:
     def test_empty_string_makes_null_shape(self):
         assert type(make_shape("")) is NullShape
 
+    def test_open_range_raises_value_error(self):
+        # A whole-column range has no fixed top/bottom -> range_boundaries
+        # returns None for those dimensions.
+        with pytest.raises(ValueError):
+            make_shape("A:A")
+
 
 # --- Value -----------------------------------------------------------------
 
