@@ -93,7 +93,9 @@ def migrate_workbook(
 
     old_wb_sheet_names = [sheet.title for sheet in old_wb_obj.worksheets]
 
-    df_old, sheets_issues = access_NR_table(old_wb_obj.defined_names, old_wb_sheet_names)
+    df_old, sheets_issues = access_NR_table(
+        old_wb_obj.defined_names, old_wb_sheet_names
+    )
     list_migrationissues.extend(sheets_issues)
     df_new, _ = access_NR_table(new_wb_empty.defined_names)
 

@@ -44,7 +44,9 @@ def create_table_of_contents(wb_values) -> Dict[str, int]:
     return dict(zip(_keys, _values))
 
 
-def access_NR_table(pyxl_NR, old_sheet_names: list[str] | None = None) -> tuple[pd.DataFrame, list]:
+def access_NR_table(
+    pyxl_NR, old_sheet_names: list[str] | None = None
+) -> tuple[pd.DataFrame, list]:
     """Access names, cell references and coordinates of each name range from the python object containing name ranges.
     Returns a (pandas) DataFrame.
     There were some VSME samples that, after processing in openpyxl, returned wrong sheet references for their name ranges (e.g. "[1]General Information" instead of "General Information");
@@ -78,9 +80,13 @@ def access_NR_table(pyxl_NR, old_sheet_names: list[str] | None = None) -> tuple[
             sheet = None
 
         rng = rng or None
-        rows.append((NR, sheet, rng, shapes(range_boundaries(rng)) if rng else shapes(None)))
+        rows.append(
+            (NR, sheet, rng, shapes(range_boundaries(rng)) if rng else shapes(None))
+        )
 
-    df_populated = pd.DataFrame(rows, columns=["name_ranges", "sheets", "cell_ranges", "cell_shapes"])
+    df_populated = pd.DataFrame(
+        rows, columns=["name_ranges", "sheets", "cell_ranges", "cell_shapes"]
+    )
     return df_populated, issues
 
 
