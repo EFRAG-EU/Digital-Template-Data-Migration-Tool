@@ -1,20 +1,19 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import TYPE_CHECKING
+from typing import TypeAlias
 
+from openpyxl.cell import Cell, MergedCell, ReadOnlyCell
 from openpyxl.utils import range_boundaries
+from openpyxl.worksheet.worksheet import Worksheet
 
-if TYPE_CHECKING:
-    from openpyxl.cell.cell import Cell
-    from openpyxl.worksheet.worksheet import Worksheet
-
+CellType: TypeAlias = Cell | MergedCell | ReadOnlyCell
+CellValue: TypeAlias = str | int | float | bool | datetime | None
 # A single cell value as openpyxl hands them back, and a rectangular block of them.
-CellValue = str | int | float | bool | datetime | None
-Block = list[list[CellValue]]
+Block: TypeAlias = list[list[CellValue]]
 
 
-def check_formula(cell: "Cell") -> bool:
+def check_formula(cell: CellType) -> bool:
     """Check whether a cell contains a formula."""
     return cell.data_type == "f"
 
@@ -52,7 +51,7 @@ class Shape:
     def isonecell(self) -> bool:
         return self.rows() == 1 and self.cols() == 1
 
-    def build_values(self, sheet: "Worksheet") -> Block | None:
+    def build_values(self, sheet: Worksheet) -> Block | None:
         """Read the cell values inside this shape as a list of rows.
 
         Returns ``None`` if any cell in the range holds a formula (formula cells
@@ -95,7 +94,7 @@ class NullShape(Shape):
     def isonecell(self) -> bool:
         return False
 
-    def build_values(self, sheet: "Worksheet") -> None:
+    def build_values(self, sheet: Worksheet) -> None:
         return None
 
     def left(self) -> int:
@@ -206,7 +205,7 @@ class Value:
     def count_uniques(self) -> int:
         return len({item for sublist in self._block for item in sublist})
 
-    def paste(self, sheet: "Worksheet", shape: Shape) -> None:
+    def paste(self, sheet: Worksheet, shape: Shape) -> None:
         if not shape:
             return
         if self.width() == 1:
@@ -258,7 +257,7 @@ class NullValue(Value):
     def count_uniques(self) -> int:
         return 0
 
-    def paste(self, sheet: "Worksheet", shape: Shape) -> None:
+    def paste(self, sheet: Worksheet, shape: Shape) -> None:
         return None
 
 
