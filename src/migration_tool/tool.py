@@ -1,6 +1,8 @@
 import io
 import time
 import warnings
+from collections.abc import Iterator
+from contextlib import contextmanager
 from importlib.resources import as_file, files
 from io import BytesIO
 from pathlib import Path
@@ -10,6 +12,7 @@ import pandas as pd
 from openpyxl import Workbook
 from openpyxl import load_workbook as openpyxl_load_workbook
 
+from .decorators import cached_copy
 from .outils import (
     access_missingNR_table,
     access_NR_table,
@@ -27,10 +30,11 @@ from .outils import (
 )
 
 FilePathOrBinaryBlob: TypeAlias = str | Path | io.BufferedIOBase
+NEW_TEMPLATE_NAME = "VSME-Digital-Template-1.3.0.xlsx"
 
 
 def load_workbook_quietly(
-    file: FilePathOrBinaryBlob, data_only: bool = False
+    file: FilePathOrBinaryBlob, data_only: bool = False, read_only: bool = False
 ) -> Workbook:
     with warnings.catch_warnings():
         warnings.filterwarnings(
@@ -39,7 +43,44 @@ def load_workbook_quietly(
             category=UserWarning,
             module=r"openpyxl\.worksheet\._reader",
         )
-        return openpyxl_load_workbook(file, data_only=data_only)
+        return openpyxl_load_workbook(file, data_only=data_only, read_only=read_only)
+
+
+@contextmanager
+def _open_cached_values(source: FilePathOrBinaryBlob) -> Iterator[Workbook]:
+    """Open `source` read-only for Excel's cached computed values, and always close it.
+
+    Formula cells surface their cached value here (not the formula). read_only keeps
+    this cheap because only a few cells are read.
+    """
+    wb = load_workbook_quietly(source, data_only=True, read_only=True)
+    try:
+        yield wb
+    finally:
+        wb.close()
+
+
+@cached_copy
+def _mapping_wastes() -> pd.DataFrame:
+    return pd.read_pickle(
+        files("migration_tool.data").joinpath("Mapping_wastes.pkl").open("rb")
+    )
+
+
+@cached_copy
+def _missing_nr_df() -> pd.DataFrame:
+    return pd.read_pickle(
+        files("migration_tool.data").joinpath("missingNR_df.pkl").open("rb")
+    )
+
+
+@cached_copy
+def _table_of_contents() -> dict[str, int]:
+    with (
+        as_file(files("migration_tool.data").joinpath(NEW_TEMPLATE_NAME)) as path,
+        _open_cached_values(path) as wb,
+    ):
+        return create_table_of_contents(wb)
 
 
 def migrate_workbook_as_bytes(
@@ -56,17 +97,13 @@ def migrate_workbook(
 ) -> tuple[Workbook, float, list[str]]:
     start_time = time.time()
 
-    mapping_wastes = pd.read_pickle(
-        files("migration_tool.data").joinpath("Mapping_wastes.pkl").open("rb")
-    )
-    missingNR_df = pd.read_pickle(
-        files("migration_tool.data").joinpath("missingNR_df.pkl").open("rb")
-    )
+    mapping_wastes = _mapping_wastes()
+    missingNR_df = _missing_nr_df()
 
-    # load old filled-out Template
+    # load old filled-out Template (formula-aware; cached values are read separately,
+    # read-only, in the `with` block below)
     if isinstance(old_wb, FilePathOrBinaryBlob):
         old_wb_obj = load_workbook_quietly(old_wb, data_only=False)
-        old_wb_obj_values = load_workbook_quietly(old_wb, data_only=True)
     else:
         raise TypeError(
             f"old_wb [{type(old_wb)}] must be a file path or an openpyxl Workbook"
@@ -74,28 +111,21 @@ def migrate_workbook(
 
     # list of migration issues to return (and to be displayed in webpage after migration), remember to update if any new potential issues arise.
     list_migrationissues: list[str] = []
-    if check_status_incomplete(old_wb_obj_values):
-        list_migrationissues.append(
-            "The old workbook is incomplete. Migration happened only for the filled-out cells, but some data might be missing."
-        )
 
-    # load new empty Template
-    with as_file(
-        files("migration_tool.data").joinpath("VSME-Digital-Template-1.3.0.xlsx")
-    ) as path:
+    # load new empty Template (mutated into the output below, so always fresh)
+    with as_file(files("migration_tool.data").joinpath(NEW_TEMPLATE_NAME)) as path:
         new_wb_empty = load_workbook_quietly(path, data_only=False)
-        new_wb_empty_values = load_workbook_quietly(path, data_only=True)
 
-    table_of_contents = create_table_of_contents(new_wb_empty_values)
+    table_of_contents = _table_of_contents()
 
     version_cell = old_wb_obj["Introduction"].cell(row=1, column=3).value
     version_cell_new = new_wb_empty["Introduction"].cell(row=1, column=3).value
 
-    old_wb_sheets = [sheet.title for sheet in old_wb_obj.worksheets]
+    old_wb_sheet_names = [sheet.title for sheet in old_wb_obj.worksheets]
 
-    df_old, sheets_issues = access_NR_table(old_wb_obj.defined_names, old_wb_sheets)
-    if isinstance(sheets_issues, list) and sheets_issues:
-        list_migrationissues.extend(sheets_issues)
+    df_old, sheets_issues = access_NR_table(
+        old_wb_obj.defined_names, old_wb_sheet_names
+    )
     df_new, _ = access_NR_table(new_wb_empty.defined_names)
 
     missingNR_df_old = access_missingNR_table(missingNR_df, version_cell)
@@ -108,8 +138,19 @@ def migrate_workbook(
         for position in [0, 1, 6]:  # careful if rows in missingNR_df change
             missingNR_df_old_values[position].convert_month_to_numbers()
 
-    if version_cell not in ["1.0.0", "1.0.1", "1.1.0", "1.1.1"]:
-        adjust_classified_info(df_old, df_old_wv, old_wb_obj_values)
+    # Read the old workbook's cached computed values once (read-only): the ToC status
+    # cell and, for 1.2.0+, the classified-info column (both are formula cells).
+    with _open_cached_values(old_wb) as old_values:
+        incomplete = check_status_incomplete(old_values)
+        if version_cell not in ["1.0.0", "1.0.1", "1.1.0", "1.1.1"]:
+            adjust_classified_info(df_old, df_old_wv, old_values)
+
+    # Assemble issues so the "incomplete" message stays first (matching prior order).
+    if incomplete:
+        list_migrationissues.append(
+            "The old workbook is incomplete. Migration happened only for the filled-out cells, but some data might be missing."
+        )
+    list_migrationissues.extend(sheets_issues)
 
     df_old_tomerge = apply_changes_NR(df_old_wv, version_cell, version_cell_new)
     df_old_tomerge = clean_NR_with_no_data(df_old_tomerge)

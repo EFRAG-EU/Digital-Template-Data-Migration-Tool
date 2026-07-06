@@ -18,6 +18,7 @@ requires-python = ">=3.11"
 dev = [
     "pytest>=8.0.0",
     "pytest-github-actions-annotate-failures",
+    "pytest-xdist>=3.0",
     "ruff>=0.15.2",
 ]
 
@@ -35,6 +36,9 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.pytest.ini_options]
+# Parallel by default, grouped by sample so each sample's expensive migration
+# runs on a single worker (see tests/conftest.py). Use `-n0` for serial debugging.
+addopts = "-n auto --dist loadgroup"
 markers = [
     "slow: marks tests that run migration multiple times (deselect with '-m \"not slow\"')",
 ]

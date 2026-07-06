@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 from typing import NamedTuple
@@ -72,15 +73,18 @@ class MigrationResult(NamedTuple):
 
 
 def _make_sample_param(path: Path):
-    """Wrap a sample path in ``pytest.param``, applying xfail when configured."""
+    """Wrap a sample path in ``pytest.param``, applying xfail when configured.
+
+    Each sample gets its own ``xdist_group`` so that, under ``--dist loadgroup``,
+    every test consuming this sample's (expensive) migration lands on the same
+    worker. That keeps the module-scoped migration fixtures running once per
+    sample instead of being recomputed on every worker.
+    """
     name = path.name
+    marks = [pytest.mark.xdist_group(name)]
     if name in XFAIL_SAMPLES:
-        return pytest.param(
-            path,
-            id=name,
-            marks=pytest.mark.xfail(reason=XFAIL_SAMPLES[name], strict=True),
-        )
-    return pytest.param(path, id=name)
+        marks.append(pytest.mark.xfail(reason=XFAIL_SAMPLES[name], strict=True))
+    return pytest.param(path, id=name, marks=marks)
 
 
 SAMPLE_PARAMS = [_make_sample_param(p) for p in SAMPLE_PATHS]
@@ -107,7 +111,11 @@ def migration_result(sample_path, results_dir) -> MigrationResult:
     per test file rather than once per test method.
     """
     new_wb, elapsed, issues = migrate_workbook(sample_path)
-    output_path = results_dir / f"{sample_path.stem}-migrated.xlsx"
+    # Suffix with the xdist worker id (if any) so parallel workers don't race
+    # on the same output file.
+    worker = os.environ.get("PYTEST_XDIST_WORKER", "")
+    suffix = f"-{worker}" if worker else ""
+    output_path = results_dir / f"{sample_path.stem}-migrated{suffix}.xlsx"
     new_wb.save(output_path)
     return MigrationResult(
         workbook=new_wb,
