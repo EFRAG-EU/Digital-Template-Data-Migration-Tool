@@ -27,6 +27,7 @@ from .outils import (
     copy_values,
     create_or_update_migration_status,
     create_table_of_contents,
+    get_version,
     paste_values,
 )
 
@@ -129,8 +130,8 @@ def migrate_workbook(
 
     table_of_contents = _table_of_contents()
 
-    version_cell = old_wb_obj["Introduction"].cell(row=1, column=3).value
-    version_cell_new = new_wb_empty["Introduction"].cell(row=1, column=3).value
+    version_cell = get_version(old_wb_obj)
+    version_cell_new = get_version(new_wb_empty)
 
     old_wb_sheet_names = [sheet.title for sheet in old_wb_obj.worksheets]
 

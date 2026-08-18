@@ -9,6 +9,24 @@ from openpyxl.workbook.defined_name import DefinedName
 from .classes import Shape, check_formula, make_shape, make_value
 
 
+def get_version(wb: Workbook) -> str:
+
+    versionNR = "template_reporting_template_version"
+
+    try:
+        sheet, rng = list(wb.defined_names[versionNR].destinations)[0]
+    except KeyError:
+        print("Name range for template version has changed.")
+
+    shape = Shape(rng.range_boundaries())
+    if not isinstance(val := wb[sheet].cell(shape._left, shape._top).value, str):
+        raise ValueError(
+            f"Expected str in version cell, got {type(val).__name__}: {val!r}"
+        )
+
+    return val
+
+
 def check_status_incomplete(openpyxl_obj) -> bool:
     """Check if the workbook is filled out or not based on the value of the 'Status' cell in the 'Table of Contents & Validation' sheet"""
 
