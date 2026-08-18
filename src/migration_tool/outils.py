@@ -1,4 +1,4 @@
-from typing import Dict
+from typing import Dict, overload, Literal
 
 import pandas as pd
 from openpyxl import Workbook
@@ -117,49 +117,20 @@ def access_missingNR_table(df_missingNR, version_cell):
     )
 
 
-def apply_changes_NR(df, version_cell, version_cell_new):
+def apply_changes_NR(
+    df: pd.DataFrame,
+    version_cell: str,
+    version_cell_new: str,
+    NR_changes: dict[str, str],
+) -> pd.DataFrame:
     """Change name ranges based on the version of the old workbook, and return a df with the updated name ranges.
     This is necessary because some name ranges have changed from version to version.
-    This dictionary could be transformed into a pd DataFrame and saved it as a pickle like missingNR_df if
-    many name changes will occur in the future, but for now it is hard-coded here."""
-
-    dict_of_changes_NR = {
-        "1.0.0": [
-            "NumberOfPermanentContactEmployees",
-            "DescriptionOfTheEffectiveParticipationOfWorkersUsersOrOtherinterestedPartiesOrCommunitiesInGovernance",
-            "MostSeniorLevelAccountableForImplementationOfPracticesPoliciesAndOrFutureInitiatives",
-        ],
-        "1.0.1": [
-            "NumberOfPermanentContactEmployees",
-            "DescriptionOfTheEffectiveParticipationOfWorkersUsersOrOtherinterestedPartiesOrCommunitiesInGovernance",
-            "MostSeniorLevelAccountableForImplementationOfPracticesPoliciesAndOrFutureInitiatives",
-        ],
-        "1.1.0": [
-            "NumberOfPermanentContractEmployees",
-            "DescriptionOfTheEffectiveParticipationOfWorkersUsersOrOtherInterestedPartiesOrCommunitiesInGovernance",
-            "MostSeniorLevelAccountableForImplementationOfPolicies",
-        ],
-        "1.1.1": [
-            "NumberOfPermanentContractEmployees",
-            "DescriptionOfTheEffectiveParticipationOfWorkersUsersOrOtherInterestedPartiesOrCommunitiesInGovernance",
-            "MostSeniorLevelAccountableForImplementationOfPolicies",
-        ],
-        "1.2.0": [
-            "NumberOfPermanentContractEmployees",
-            "DescriptionOfTheEffectiveParticipationOfWorkersUsersOrOtherInterestedPartiesOrCommunitiesInGovernance",
-            "MostSeniorLevelAccountableForImplementationOfPolicies",
-        ],
-        "1.3.0": [
-            "NumberOfPermanentContractEmployees",
-            "DescriptionOfTheEffectiveParticipationOfWorkersUsersOrOtherInterestedPartiesOrCommunitiesInGovernance",
-            "MostSeniorLevelAccountableForImplementationOfPolicies",
-        ],
-    }
+    Data comes from NR_changes.json, to be updated each time a NR name changes."""
 
     df_of_changes_NR = pd.DataFrame(
         {
-            "name_ranges": dict_of_changes_NR[version_cell],
-            "name_ranges_new": dict_of_changes_NR[version_cell_new],
+            "name_ranges": NR_changes[version_cell],
+            "name_ranges_new": NR_changes[version_cell_new],
         }
     )
 
@@ -243,10 +214,16 @@ def get_indexes_of_NAs(df, column) -> list[int]:
     return df.loc[df[column].isna()].index.tolist()
 
 
-def copy_values(pyxl, df, key=None) -> pd.DataFrame | pd.Series:
+@overload
+def copy_values(pyxl, df, *, NRflag: Literal[True]) -> pd.DataFrame: ...
+@overload
+def copy_values(pyxl, df, *, NRflag: Literal[False]) -> pd.Series: ...
+def copy_values(
+    pyxl: Workbook, df: pd.DataFrame, *, NRflag: bool
+) -> pd.DataFrame | pd.Series:
     """Copy values from openpyxl workbook based on cell shapes, returns DataFrame with col of cell values.
-    2 cases: 1) if key is provided, a DataFrame with 2 cols (name ranges and values) is returned;
-             2) if key is not provided, just the cell values are returned as a pandas Series."""
+    2 cases: 1) if NRflag is True, a DataFrame with 2 cols (name ranges and values) is returned;
+             2) if NRflag is False, just the cell values are returned as a pandas Series."""
 
     cell_values = []
     index_sheets = get_indexes_of_NAs(df, "sheets")
@@ -268,8 +245,8 @@ def copy_values(pyxl, df, key=None) -> pd.DataFrame | pd.Series:
 
     df["cell_values"] = cell_values
 
-    if key is not None:
-        return df[[key, "cell_values"]]
+    if NRflag:
+        return df[["name_ranges", "cell_values"]]
     else:
         return df["cell_values"]
 

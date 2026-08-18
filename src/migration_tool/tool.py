@@ -7,6 +7,7 @@ from importlib.resources import as_file, files
 from io import BytesIO
 from pathlib import Path
 from typing import TypeAlias
+import json
 
 import pandas as pd
 from openpyxl import Workbook
@@ -75,6 +76,14 @@ def _missing_nr_df() -> pd.DataFrame:
 
 
 @cached_copy
+def _NR_changes() -> dict:
+    with open(
+        "src/migration_tool/data/NR_changes.json", "r", encoding="utf-8"
+    ) as json_file:
+        return json.load(json_file)
+
+
+@cached_copy
 def _table_of_contents() -> dict[str, int]:
     with (
         as_file(files("migration_tool.data").joinpath(NEW_TEMPLATE_NAME)) as path,
@@ -131,12 +140,12 @@ def migrate_workbook(
     missingNR_df_old = access_missingNR_table(missingNR_df, version_cell)
     missingNR_df_new = access_missingNR_table(missingNR_df, version_cell_new)
 
-    df_old_wv = copy_values(old_wb_obj, df_old, key="name_ranges")
-    missingNR_df_old_values = copy_values(old_wb_obj, missingNR_df_old, key=None)
+    df_old_wv = copy_values(old_wb_obj, df_old, NRflag=True)
+    missingNR_old_values = copy_values(old_wb_obj, missingNR_df_old, NRflag=False)
 
     if version_cell == "1.0.0":
         for position in [0, 1, 6]:  # careful if rows in missingNR_df change
-            missingNR_df_old_values[position].convert_month_to_numbers()
+            missingNR_old_values[position].convert_month_to_numbers()
 
     # Read the old workbook's cached computed values once (read-only): the ToC status
     # cell and, for 1.2.0+, the classified-info column (both are formula cells).
@@ -152,13 +161,15 @@ def migrate_workbook(
         )
     list_migrationissues.extend(sheets_issues)
 
-    df_old_tomerge = apply_changes_NR(df_old_wv, version_cell, version_cell_new)
+    df_old_tomerge = apply_changes_NR(
+        df_old_wv, version_cell, version_cell_new, _NR_changes()
+    )
     df_old_tomerge = clean_NR_with_no_data(df_old_tomerge)
     if version_cell in ["1.0.0", "1.0.1"]:
         list_migrationissues.extend(change_wastes(df_old_tomerge, mapping_wastes))
 
     df_new_wv = df_new.merge(df_old_tomerge)
-    missingNR_df_new_wv = pd.concat([missingNR_df_new, missingNR_df_old_values], axis=1)
+    missingNR_df_new_wv = pd.concat([missingNR_df_new, missingNR_old_values], axis=1)
 
     if version_cell in ["1.0.0", "1.0.1"]:
         adjust_data_missing_first2versions(df_new_wv, missingNR_df_new_wv, old_wb_obj)
