@@ -1,7 +1,7 @@
 import io
 import time
 import warnings
-from collections.abc import Iterator
+from collections.abc import Generator
 from contextlib import contextmanager
 from importlib.resources import as_file, files
 from io import BytesIO
@@ -48,7 +48,9 @@ def load_workbook_quietly(
 
 
 @contextmanager
-def _open_cached_values(source: FilePathOrBinaryBlob) -> Iterator[Workbook]:
+def _open_cached_values(
+    source: FilePathOrBinaryBlob,
+) -> Generator[Workbook, None, None]:
     """Open `source` read-only for Excel's cached computed values, and always close it.
 
     Formula cells surface their cached value here (not the formula). read_only keeps
