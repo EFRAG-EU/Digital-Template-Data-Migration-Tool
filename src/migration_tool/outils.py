@@ -1,4 +1,4 @@
-from typing import Dict, overload, Literal
+from typing import cast, Dict, overload, Literal
 
 import pandas as pd
 from openpyxl import Workbook
@@ -6,7 +6,7 @@ from openpyxl.styles import Alignment
 from openpyxl.utils import absolute_coordinate, quote_sheetname, range_boundaries
 from openpyxl.workbook.defined_name import DefinedName
 
-from .classes import Shape, check_formula, make_shape, make_value
+from .classes import Shape, Value, check_formula, make_shape, make_value
 from .data.validations import VersionCollection
 
 
@@ -238,20 +238,21 @@ def copy_values(
              2) if NRflag is False, just the cell values are returned as a pandas Series."""
 
     cell_values = []
+    # Python None always becomes NaN after pd.DataFrame creation
     index_sheets = get_indexes_of_NAs(df, "sheets")
     index_ranges = get_indexes_of_NAs(df, "cell_ranges")
 
     for i in range(len(df)):
         if i not in index_sheets:
             sheet = pyxl[df["sheets"][i]]
-            shape = df["cell_shapes"][i]
+            shape = cast(Shape, df["cell_shapes"][i])
 
             # handling the #REF ranges
             if i not in index_ranges:
                 cell_values.append(make_value(shape.build_values(sheet)))
             else:
                 cell_values.append(make_value(None))
-        # to handle issue with sheet names (ex "[1]General Information") in old workbooks
+        # handling issue with sheet names (ex "[1]General Information") in old workbooks
         else:
             cell_values.append(make_value(None))
 
@@ -263,7 +264,7 @@ def copy_values(
         return df["cell_values"]
 
 
-def paste_values(pyxl, df, NR=None, table_of_contents=None, version=None):
+def paste_values(pyxl: Workbook, df, NR=None, table_of_contents=None, version=None):
     """Paste values from a DataFrame column into an openpyxl workbook.
 
     Treatment for merged cells (merged only across columns in VSMEs):
@@ -294,9 +295,9 @@ def paste_values(pyxl, df, NR=None, table_of_contents=None, version=None):
 
     for i in range(len(df)):
         sheet = pyxl[df["sheets"][i]]
-        rng = sheet[df["cell_ranges"][i]]
-        shape = df["cell_shapes"][i]
-        value = df["cell_values"][i]
+        rng = df["cell_ranges"][i]
+        shape = cast(Shape, df["cell_shapes"][i])
+        value = cast(Value, df["cell_values"][i])
 
         # specific handling for list of classified information
         if table_of_contents is not None:
@@ -311,7 +312,7 @@ def paste_values(pyxl, df, NR=None, table_of_contents=None, version=None):
             continue
 
         if shape.isonecell():
-            rng.value = value.topleft()  # when it's one cell, paste topleft
+            sheet[rng] = value.topleft()  # when it's one cell, paste topleft
 
         else:
             tuple_to_check = (shape.left(), shape.top())

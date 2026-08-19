@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import TypeAlias
+from typing import TypeAlias, cast
 
 from openpyxl.cell import Cell, MergedCell, ReadOnlyCell
 from openpyxl.utils import range_boundaries
@@ -61,7 +61,7 @@ class Shape:
             topleft = sheet.cell(row=self._top, column=self._left)
             if check_formula(topleft):
                 return None
-            return [[topleft.value]]
+            return [[cast(CellValue, topleft.value)]]
 
         list_values: Block = []
         for row in range(self._top, self._bottom + 1):
@@ -70,7 +70,7 @@ class Shape:
                 cell = sheet.cell(row=row, column=col)
                 if check_formula(cell):
                     return None
-                row_values.append(cell.value)
+                row_values.append(cast(CellValue, cell.value))
             list_values.append(row_values)
         return list_values
 
@@ -199,7 +199,7 @@ class Value:
             "December": 12,
         }
         month = self._block[1][0]  # second row of each element (see the Template)
-        if month:
+        if isinstance(month, str):
             self._block[1][0] = month_dict[month]
 
     def count_uniques(self) -> int:
@@ -210,15 +210,21 @@ class Value:
             return
         if self.width() == 1:
             for row in range(shape.top(), shape.bottom() + 1):
-                sheet.cell(row=row, column=shape.left()).value = self._block[
-                    row - shape.top()
-                ][0]
+                cell = sheet.cell(row=row, column=shape.left())
+                if not isinstance(cell, Cell):
+                    raise ValueError(
+                        f"Cannot assign value to merged cell at {cell.coordinate}"
+                    )
+                cell.value = self._block[row - shape.top()][0]
         else:
             for row in range(shape.top(), shape.bottom() + 1):
                 for col in range(shape.left(), shape.right() + 1):
-                    sheet.cell(row=row, column=col).value = self._block[
-                        row - shape.top()
-                    ][col - shape.left()]
+                    cell = sheet.cell(row=row, column=col)
+                    if not isinstance(cell, Cell):
+                        raise ValueError(
+                            f"Cannot assign value to merged cell at {cell.coordinate}"
+                        )
+                    cell.value = self._block[row - shape.top()][col - shape.left()]
 
     def __bool__(self) -> bool:
         return True
