@@ -24,6 +24,7 @@ from .outils import (
     change_wastes,
     check_status_incomplete,
     clean_NR_with_no_data,
+    convert_months,
     copy_values,
     create_or_update_migration_status,
     create_table_of_contents,
@@ -148,9 +149,8 @@ def migrate_workbook(
     df_old_wv = copy_values(old_wb_obj, df_old, NRflag=True)
     missingNR_old_values = copy_values(old_wb_obj, missingNR_df_old, NRflag=False)
 
-    if version_cell == "1.0.0":
-        for position in [0, 1, 6]:  # careful if rows in missingNR_df change
-            missingNR_old_values[position].convert_month_to_numbers()
+    DATES = ("StartDate", "EndDate", "DateAdoptionTransitionPlan")
+    convert_months(missingNR_old_values, version_cell, DATES)
 
     # Read the old workbook's cached computed values once (read-only): the ToC status
     # cell and, for 1.2.0+, the classified-info column (both are formula cells).
@@ -174,7 +174,7 @@ def migrate_workbook(
         list_migrationissues.extend(change_wastes(df_old_tomerge, mapping_wastes))
 
     df_new_wv = df_new.merge(df_old_tomerge)
-    missingNR_df_new_wv = pd.concat([missingNR_df_new, missingNR_old_values], axis=1)
+    missingNR_df_new_wv = missingNR_df_new.merge(missingNR_old_values)
 
     if version_cell in ["1.0.0", "1.0.1"]:
         adjust_data_missing_first2versions(df_new_wv, missingNR_df_new_wv, old_wb_obj)

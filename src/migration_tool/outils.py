@@ -116,12 +116,14 @@ def access_missingNR_table(missingNR: VersionCollection, version: str) -> pd.Dat
     (see validations.py for data structure)
     """
 
+    list_of_labels = missingNR.get_labels(version)
     list_of_sheets = missingNR.get_sheets(version)
     list_of_ranges = missingNR.get_ranges(version)
     list_of_shapes = [make_shape(rng) for rng in list_of_ranges]
 
     return pd.DataFrame(
         {
+            "labels": list_of_labels,
             "sheets": list_of_sheets,
             "cell_ranges": list_of_ranges,
             "cell_shapes": list_of_shapes,
@@ -189,6 +191,13 @@ def change_wastes(df, mapping) -> list[str]:
     return list_wasteissues
 
 
+def convert_months(df: pd.DataFrame, version: str, dateLabels: tuple) -> None:
+    if version == "1.0.0":
+        mask = df["labels"].isin(dateLabels)
+        for _, row in df[mask].iterrows():
+            row["cell_values"].convert_month_to_numbers()
+
+
 def clean_NR_with_no_data(df):
     """Function to filter name ranges to process.
     Some (most starting with template_) were created for Digital Converter and not for storing data.
@@ -226,16 +235,12 @@ def get_indexes_of_NAs(df, column) -> list[int]:
     return df.loc[df[column].isna()].index.tolist()
 
 
-@overload
-def copy_values(pyxl, df, *, NRflag: Literal[True]) -> pd.DataFrame: ...
-@overload
-def copy_values(pyxl, df, *, NRflag: Literal[False]) -> pd.Series: ...
-def copy_values(
-    pyxl: Workbook, df: pd.DataFrame, *, NRflag: bool
-) -> pd.DataFrame | pd.Series:
-    """Copy values from openpyxl workbook based on cell shapes, returns DataFrame with col of cell values.
-    2 cases: 1) if NRflag is True, a DataFrame with 2 cols (name ranges and values) is returned;
-             2) if NRflag is False, just the cell values are returned as a pandas Series."""
+def copy_values(pyxl: Workbook, df: pd.DataFrame, *, NRflag: bool) -> pd.DataFrame:
+    """
+    Copy values from openpyxl workbook based on cell shapes, returns DataFrame with col of cell values.
+    If NRflag is True, DataFrame is returned with the name range col;
+    if False, with the labels col (see missing_NR.json).
+    """
 
     cell_values = []
     # Python None always becomes NaN after pd.DataFrame creation
@@ -261,7 +266,7 @@ def copy_values(
     if NRflag:
         return df[["name_ranges", "cell_values"]]
     else:
-        return df["cell_values"]
+        return df[["labels", "cell_values"]]
 
 
 def paste_values(pyxl: Workbook, df, NR=None, table_of_contents=None, version=None):
