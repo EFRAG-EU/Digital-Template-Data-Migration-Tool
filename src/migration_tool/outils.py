@@ -7,6 +7,7 @@ from openpyxl.utils import absolute_coordinate, quote_sheetname, range_boundarie
 from openpyxl.workbook.defined_name import DefinedName
 
 from .classes import Shape, check_formula, make_shape, make_value
+from .data.validations import VersionCollection
 
 
 def get_version(wb: Workbook) -> str:
@@ -107,23 +108,16 @@ def access_NR_table(
     return df_populated, issues
 
 
-def access_missingNR_table(df_missingNR, version_cell):
-    """Access sheets, cell references and coordinates of each missing name range.
-    the func argument df_missingNR is an hard-coded DataFrame created because certain name ranges were not present in old VSME versions.
-    The DataFrame (missingNR_df.pkl) is saved in src/migration_tool/data, and must be updated for every new VSME version,
-    with a new column for each version (and its corresponding references for every missing name range)."""
+def access_missingNR_table(missingNR: VersionCollection, version: str) -> pd.DataFrame:
+    """
+    Access sheets, cell references and coordinates of each missing name range.
+    The json data contained in missingNR is hard-coded because certain name ranges were not present in old VSME versions.
+    The json is saved in src/migration_tool/data, and must be updated for every new VSME version
+    (see validations.py for data structure)
+    """
 
-    list_of_sheets = []
-    list_of_ranges = []
-
-    for i in range(len(df_missingNR)):
-        list_of_sheets.append(df_missingNR.loc[:, version_cell].values[i].split("!")[0])
-        list_of_ranges.append(df_missingNR.loc[:, version_cell].values[i].split("!")[1])
-
-    for rang in list_of_ranges:
-        if rang == "None":
-            list_of_ranges[list_of_ranges.index(rang)] = None
-
+    list_of_sheets = missingNR.get_sheets(version)
+    list_of_ranges = missingNR.get_ranges(version)
     list_of_shapes = [make_shape(rng) for rng in list_of_ranges]
 
     return pd.DataFrame(

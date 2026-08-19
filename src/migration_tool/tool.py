@@ -30,6 +30,7 @@ from .outils import (
     get_version,
     paste_values,
 )
+from .data.validations import VersionCollection
 
 FilePathOrBinaryBlob: TypeAlias = str | Path | io.BufferedIOBase
 NEW_TEMPLATE_NAME = "VSME-Digital-Template-1.3.0.xlsx"
@@ -72,10 +73,11 @@ def _mapping_wastes() -> pd.DataFrame:
 
 
 @cached_copy
-def _missing_nr_df() -> pd.DataFrame:
-    return pd.read_pickle(
-        files("migration_tool.data").joinpath("missingNR_df.pkl").open("rb")
-    )
+def _missing_NR() -> dict[str, dict[str, str]]:
+    with open(
+        "src/migration_tool/data/missing_NR.json", "r", encoding="utf-8"
+    ) as json_file:
+        return json.load(json_file)
 
 
 @cached_copy
@@ -110,7 +112,7 @@ def migrate_workbook(
     start_time = time.time()
 
     mapping_wastes = _mapping_wastes()
-    missingNR_df = _missing_nr_df()
+    missingNR = VersionCollection().from_dict(_missing_NR())
 
     # load old filled-out Template (formula-aware; cached values are read separately,
     # read-only, in the `with` block below)
@@ -140,8 +142,8 @@ def migrate_workbook(
     )
     df_new, _ = access_NR_table(new_wb_empty.defined_names)
 
-    missingNR_df_old = access_missingNR_table(missingNR_df, version_cell)
-    missingNR_df_new = access_missingNR_table(missingNR_df, version_cell_new)
+    missingNR_df_old = access_missingNR_table(missingNR, version_cell)
+    missingNR_df_new = access_missingNR_table(missingNR, version_cell_new)
 
     df_old_wv = copy_values(old_wb_obj, df_old, NRflag=True)
     missingNR_old_values = copy_values(old_wb_obj, missingNR_df_old, NRflag=False)
