@@ -1,4 +1,5 @@
-from typing import cast, Dict, overload, Literal
+from typing import cast, Dict, Any
+from dataclasses import dataclass
 
 import pandas as pd
 from openpyxl import Workbook
@@ -7,34 +8,51 @@ from openpyxl.utils import absolute_coordinate, quote_sheetname, range_boundarie
 from openpyxl.workbook.defined_name import DefinedName
 
 from .classes import Shape, Value, check_formula, make_shape, make_value
+from .tool import IssuesCollector
 from .data.validations import VersionCollection
 
 
-def get_version(wb: Workbook) -> str:
+@dataclass
+class NameRangeRefs:
+    sheet: str
+    range: str
 
-    versionNR = "template_reporting_template_version"
 
+def try_fetch_NR_refs(NR: str, dn, c: IssuesCollector) -> NameRangeRefs:
     try:
-        sheet, rng = list(wb.defined_names[versionNR].destinations)[0]
-    except KeyError:
-        print("Name range for template version has changed.")
+        destination = list(dn.destinations)
+    except AttributeError:
+        issue = f"Name range '{NR}' has an unreadable destination (value: {dn.attr_text!r}). This name range has been ignored in the migration."
+        c.issues.append(issue)
+        return NameRangeRefs("", "")
 
-    shape = Shape(rng.range_boundaries())
-    if not isinstance(val := wb[sheet].cell(shape._left, shape._top).value, str):
-        raise ValueError(
-            f"Expected str in version cell, got {type(val).__name__}: {val!r}"
-        )
+    if len(destination) != 1:
+        issue = f"Name range '{NR}' has {len(destination)} destinations (expected 1; value: {dn.attr_text!r}). This name range has been ignored in the migration."
+        c.issues.append(issue)
+        return NameRangeRefs("", "")
 
-    return val
+    sheet, range = destination[0]
+
+    return NameRangeRefs(sheet, range)
 
 
-def check_status_incomplete(openpyxl_obj) -> bool:
-    """Check if the workbook is filled out or not based on the value of the 'Status' cell in the 'Table of Contents & Validation' sheet"""
+def get_NR_singlevalue(wb: Workbook, name: str, c: IssuesCollector) -> Any:
+    dn = wb.defined_names[name]
+    refs = try_fetch_NR_refs(name, dn, c)
+    if not refs.sheet and not refs.range:
+        return None
 
-    status_cell = openpyxl_obj["Table of Contents & Validation"]["C3"].value
-    "INCOMPLETE, INCOMPLETE, UFÆRDIG , ONVOLLEDIG, INCOMPLET, UNVOLLSTÄNDIG, NEAMHIOMLÁN, INCOMPLETO, NEBAIGTA, NIEKOMPLETNY, INCOMPLETO, NEPOPOLNO, INCOMPLETO"
+    shape = make_shape(refs.range)
+    return wb[refs.sheet].cell(shape._left, shape._top).value
+
+
+def check_status_incomplete(wb: Workbook, status: str, c: IssuesCollector) -> bool:
+    """
+    Check if the workbook is filled out or not based on the value of template_overall_validation_status.
+    Check is manual as openpyxl displays only the resulting label (in the selected language).
+    """
+    status_cell = get_NR_singlevalue(wb, status, c)
     if status_cell in [
-        "INCOMPLETE",
         "INCOMPLETE",
         "UFÆRDIG",
         "ONVOLLEDIG",
@@ -64,36 +82,25 @@ def create_table_of_contents(wb_values) -> Dict[str, int]:
 
 
 def access_NR_table(
-    pyxl_NR, old_sheet_names: list[str] | None = None
-) -> tuple[pd.DataFrame, list]:
+    pyxl_NR,
+    c: IssuesCollector,
+    old_sheet_names: list[str] | None = None,
+) -> pd.DataFrame:
     """Access names, cell references and coordinates of each name range from the python object containing name ranges.
     Returns a (pandas) DataFrame.
     There were some VSME samples that, after processing in openpyxl, returned wrong sheet references for their name ranges (e.g. "[1]General Information" instead of "General Information");
     To handle this, a list of issues (str explaining where the issue is) is returned alongside the DataFrame."""
 
     rows: list[tuple[str, str | None, str | None, Shape]] = []
-    issues: list[str] = []
 
     for NR, dn in pyxl_NR.items():
-        try:
-            destinations = list(dn.destinations)
-        except AttributeError:
-            issues.append(
-                f"Name range '{NR}' has an unreadable destination (value: {dn.attr_text!r}). This name range has been ignored in the migration."
-            )
-            rows.append((NR, None, None, make_shape(None)))
-            continue
+        refs = try_fetch_NR_refs(NR, dn, c)
 
-        if len(destinations) != 1:
-            issues.append(
-                f"Name range '{NR}' has {len(destinations)} destinations (expected 1; value: {dn.attr_text!r}). This name range has been ignored in the migration."
-            )
-            rows.append((NR, None, None, make_shape(None)))
-            continue
+        sheet: str | None = refs.sheet
+        rng = refs.range
 
-        sheet, rng = destinations[0]
         if old_sheet_names is not None and sheet not in old_sheet_names:
-            issues.append(
+            c.issues.append(
                 f"Name range '{NR}' refers to sheet '{sheet}' which is not present in the old workbook. This name range has been ignored in the migration."
             )
             sheet = None
@@ -105,7 +112,7 @@ def access_NR_table(
     df_populated = pd.DataFrame(
         rows, columns=["name_ranges", "sheets", "cell_ranges", "cell_shapes"]
     )
-    return df_populated, issues
+    return df_populated
 
 
 def access_missingNR_table(missingNR: VersionCollection, version: str) -> pd.DataFrame:
@@ -159,36 +166,27 @@ def apply_changes_NR(
     return df
 
 
-def change_wastes(df, mapping) -> list[str]:
+def change_wastes(df: pd.DataFrame, mapping, c: IssuesCollector):
     """Change waste categories based on mapping_wastes.pkl provided in src/migration_tool/data/mapping.
     Mapping is based on the changes in waste categories in the new EU Regulation (see more in wastes.xlsx in base dir).
-    Returns a list of issues encountered during the change (e.g. old waste category not present in the new Regulation)."""
+    Issues appended are old waste categories not present in the new Regulation)."""
 
-    old_wastes = (
-        df.loc[df["name_ranges"] == "TypeOfWasteAxis", "cell_values"]
-        .values[0]
-        .first_element_row(double_list=False)
-    )
+    df_element: pd.Series = df.loc[
+        df["name_ranges"] == "TypeOfWasteAxis", "cell_values"
+    ]
+    waste_block = cast(Value, df_element.values[0])
+    old_wastes = waste_block.first_element_row(double_list=False)
+
     new_wastes = []
-    list_wasteissues: list[str] = []
+    print_return = "not present in new Regulation. Please, see https://eur-lex.europa.eu/legal-content/EN/TXT/PDF/?uri=CELEX:32014D0955"
     for i in old_wastes:
         if i is not None:
             if pd.isna(mapping.loc[mapping["old"] == i, "new"].values[0]):
-                new_wastes.append(
-                    [
-                        f"Waste category {i} not present in new Regulation. Please, see https://eur-lex.europa.eu/legal-content/EN/TXT/PDF/?uri=CELEX:32014D0955"
-                    ]
-                )
-                list_wasteissues.append(
-                    f"Waste category --{i}-- not present in new Regulation. Please, see https://eur-lex.europa.eu/legal-content/EN/TXT/PDF/?uri=CELEX:32014D0955"
-                )
+                new_wastes.append(f"Waste category {i} {print_return}")
+                c.issues.append(f"Waste category {i} {print_return}")
             else:
                 new_wastes.append([mapping.loc[mapping["old"] == i, "new"].values[0]])
-    df.loc[df["name_ranges"] == "TypeOfWasteAxis", "cell_values"] = make_value(
-        new_wastes
-    )
-
-    return list_wasteissues
+    df_element = make_value(new_wastes)
 
 
 def convert_months(df: pd.DataFrame, version: str, dateLabels: tuple) -> None:
@@ -443,10 +441,10 @@ def create_or_update_migration_status(pyxl) -> None:
         ws["D2"].value = "=AND(TRUE,OR(FALSE,TRUE))"
 
 
-def assess_energyConsumption_validation(df: pd.DataFrame) -> list[str] | None:
+def assess_energyConsumption_validation(df: pd.DataFrame, c: IssuesCollector):
     """Fuel Converter for first 3 versions does not sum from the third added fuel.
     This function checks whether a third fuel (in C12) has been added,
-    and returns an issue to be added to the migration issues list since
+    and appends an issue to issuesCollector list since
     the newest version should display a validation error next to the energy cons. cells."""
 
     if (
@@ -457,8 +455,6 @@ def assess_energyConsumption_validation(df: pd.DataFrame) -> list[str] | None:
         .tolist()[0]
         .topleft()
     ):
-        return [
+        c.issues.append(
             "Issues in Energy Consumption sums. Please check the Environmental Disclosures and the Fuel Converter sheets."
-        ]
-    else:
-        return None
+        )

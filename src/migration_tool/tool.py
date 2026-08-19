@@ -8,6 +8,7 @@ from io import BytesIO
 from pathlib import Path
 from typing import TypeAlias
 import json
+from dataclasses import dataclass, field
 
 import pandas as pd
 from openpyxl import Workbook
@@ -28,13 +29,23 @@ from .outils import (
     copy_values,
     create_or_update_migration_status,
     create_table_of_contents,
-    get_version,
+    get_NR_singlevalue,
     paste_values,
 )
 from .data.validations import VersionCollection
 
 FilePathOrBinaryBlob: TypeAlias = str | Path | io.BufferedIOBase
 NEW_TEMPLATE_NAME = "VSME-Digital-Template-1.3.0.xlsx"
+VERSION_NR = "template_reporting_template_version"
+STATUS_NR = "template_overall_validation_status"
+
+
+@dataclass
+class IssuesCollector:
+    issues: list[str] = field(default_factory=list)
+
+    def append_first(self, issue: str):
+        self.issues.insert(0, issue)
 
 
 def load_workbook_quietly(
@@ -124,8 +135,9 @@ def migrate_workbook(
             f"old_wb [{type(old_wb)}] must be a file path or an openpyxl Workbook"
         )
 
-    # list of migration issues to return (and to be displayed in webpage after migration), remember to update if any new potential issues arise.
-    list_migrationissues: list[str] = []
+    # list of migration issues to return (and to be displayed in webpage after migration).
+    # Remember to update if any new potential issues arise.
+    c = IssuesCollector()
 
     # load new empty Template (mutated into the output below, so always fresh)
     with as_file(files("migration_tool.data").joinpath(NEW_TEMPLATE_NAME)) as path:
@@ -133,15 +145,13 @@ def migrate_workbook(
 
     table_of_contents = _table_of_contents()
 
-    version_cell = get_version(old_wb_obj)
-    version_cell_new = get_version(new_wb_empty)
+    version_cell = get_NR_singlevalue(old_wb_obj, VERSION_NR, c)
+    version_cell_new = get_NR_singlevalue(new_wb_empty, VERSION_NR, c)
 
     old_wb_sheet_names = [sheet.title for sheet in old_wb_obj.worksheets]
 
-    df_old, sheets_issues = access_NR_table(
-        old_wb_obj.defined_names, old_wb_sheet_names
-    )
-    df_new, _ = access_NR_table(new_wb_empty.defined_names)
+    df_old = access_NR_table(old_wb_obj.defined_names, c, old_wb_sheet_names)
+    df_new = access_NR_table(new_wb_empty.defined_names, c)
 
     missingNR_df_old = access_missingNR_table(missingNR, version_cell)
     missingNR_df_new = access_missingNR_table(missingNR, version_cell_new)
@@ -155,23 +165,22 @@ def migrate_workbook(
     # Read the old workbook's cached computed values once (read-only): the ToC status
     # cell and, for 1.2.0+, the classified-info column (both are formula cells).
     with _open_cached_values(old_wb) as old_values:
-        incomplete = check_status_incomplete(old_values)
+        incomplete = check_status_incomplete(old_values, STATUS_NR, c)
         if version_cell not in ["1.0.0", "1.0.1", "1.1.0", "1.1.1"]:
             adjust_classified_info(df_old, df_old_wv, old_values)
 
-    # Assemble issues so the "incomplete" message stays first (matching prior order).
+    # "Incomplete" message first
     if incomplete:
-        list_migrationissues.append(
+        c.append_first(
             "The old workbook is incomplete. Migration happened only for the filled-out cells, but some data might be missing."
         )
-    list_migrationissues.extend(sheets_issues)
 
     df_old_tomerge = apply_changes_NR(
         df_old_wv, version_cell, version_cell_new, _NR_changes()
     )
     df_old_tomerge = clean_NR_with_no_data(df_old_tomerge)
     if version_cell in ["1.0.0", "1.0.1"]:
-        list_migrationissues.extend(change_wastes(df_old_tomerge, mapping_wastes))
+        change_wastes(df_old_tomerge, mapping_wastes, c)
 
     df_new_wv = df_new.merge(df_old_tomerge)
     missingNR_df_new_wv = missingNR_df_new.merge(missingNR_old_values)
@@ -180,9 +189,7 @@ def migrate_workbook(
         adjust_data_missing_first2versions(df_new_wv, missingNR_df_new_wv, old_wb_obj)
 
     if version_cell in ["1.0.0", "1.0.1", "1.1.0"]:
-        issue_energyCons = assess_energyConsumption_validation(missingNR_df_new_wv)
-        if issue_energyCons:
-            list_migrationissues.extend(issue_energyCons)
+        assess_energyConsumption_validation(missingNR_df_new_wv, c)
 
     paste_values(new_wb_empty, missingNR_df_new_wv)
     paste_values(
@@ -196,4 +203,4 @@ def migrate_workbook(
     create_or_update_migration_status(new_wb_empty)
 
     elapsed = time.time() - start_time
-    return new_wb_empty, elapsed, list_migrationissues
+    return new_wb_empty, elapsed, c.issues
