@@ -12,6 +12,43 @@ from .tool import IssuesCollector
 from .data.validations import VersionCollection
 
 
+def get_DFcell(df: pd.DataFrame, return_col: str, *colfilters_pairs: tuple[str, Any]):
+
+    if not colfilters_pairs:
+        raise TypeError("At least one pair (column, filter) is required.")
+
+    mask = pd.Series(True, index=df.index)
+
+    for col, filter in colfilters_pairs:
+        # & operator progressively builds the mask
+        mask &= df[col] == filter
+
+    result = df.loc[mask, return_col]
+
+    if len(result) != 1:
+        raise ValueError(f"Expected exactly one result, got {len(result)}")
+
+    return result.iloc[0]
+
+
+def set_DFcell(
+    df: pd.DataFrame, paste_col: str, value, *colfilters_pairs: tuple[str, Any]
+):
+
+    if not colfilters_pairs:
+        raise TypeError("At least one pair (column, filter) is required.")
+
+    mask = pd.Series(True, index=df.index)
+
+    for col, filter in colfilters_pairs:
+        mask &= df[col] == filter
+
+    if len(cell := df.loc[mask, paste_col]) != 1:
+        raise ValueError(f"Expected exactly one result, got {len(cell)}")
+
+    df.loc[mask, paste_col] = value
+
+
 @dataclass
 class NameRangeRefs:
     sheet: str
@@ -171,22 +208,26 @@ def change_wastes(df: pd.DataFrame, mapping, c: IssuesCollector):
     Mapping is based on the changes in waste categories in the new EU Regulation (see more in wastes.xlsx in base dir).
     Issues appended are old waste categories not present in the new Regulation)."""
 
-    df_element: pd.Series = df.loc[
-        df["name_ranges"] == "TypeOfWasteAxis", "cell_values"
-    ]
-    waste_block = cast(Value, df_element.values[0])
+    WASTECATEGORIES_NR = "TypeOfWasteAxis"
+
+    waste_block = cast(
+        Value, get_DFcell(df, "cell_values", ("name_ranges", WASTECATEGORIES_NR))
+    )
     old_wastes = waste_block.first_element_row(double_list=False)
 
-    new_wastes = []
+    new_wastes: list[list[str]] = []
     print_return = "not present in new Regulation. Please, see https://eur-lex.europa.eu/legal-content/EN/TXT/PDF/?uri=CELEX:32014D0955"
     for i in old_wastes:
         if i is not None:
-            if pd.isna(mapping.loc[mapping["old"] == i, "new"].values[0]):
-                new_wastes.append(f"Waste category {i} {print_return}")
+            if pd.isna(new_cat := get_DFcell(mapping, "new", ("old", i))):
+                new_wastes.append([f"Waste category {i} {print_return}"])
                 c.issues.append(f"Waste category {i} {print_return}")
             else:
-                new_wastes.append([mapping.loc[mapping["old"] == i, "new"].values[0]])
-    df_element = make_value(new_wastes)
+                new_wastes.append([new_cat])
+
+    set_DFcell(
+        df, "cell_values", make_value(new_wastes), ("name_ranges", WASTECATEGORIES_NR)
+    )
 
 
 def convert_months(df: pd.DataFrame, version: str, dateLabels: tuple) -> None:
@@ -359,27 +400,25 @@ def classified_info_handling(value, table_of_contents, pyxl, version) -> None:
 
 
 def adjust_classified_info(
-    df: pd.DataFrame, df_values: pd.DataFrame | pd.Series, px_values: Workbook
+    df: pd.DataFrame, df_values: pd.DataFrame, wb_values: Workbook
 ) -> None:
     """Copy classified info values for version where data is already in cells with formulas.
     Cannot do this in copy_values or build_values method because it needs to be done on value-only workbooks.
     Needed to migrate classified information choices, which in newer templates are selected via the ToC."""
 
-    sheet_generalinfo = px_values["General Information"]
-    shape_classifiedinfo = df.loc[
-        df["name_ranges"]
-        == "ListOfOmittedDisclosuresDeemedToBeClassifiedOrSensitiveInformation",
-        "cell_shapes",
-    ].item()
+    OMITTEDDISCL_NR = (
+        "ListOfOmittedDisclosuresDeemedToBeClassifiedOrSensitiveInformation"
+    )
+    filter: tuple = ("name_ranges", OMITTEDDISCL_NR)
+
+    sheet_generalinfo = wb_values["General Information"]
+    shape_classifiedinfo: Shape = get_DFcell(df, "cell_shapes", filter)
+
     values_classifiedinfo = make_value(
         shape_classifiedinfo.build_values(sheet_generalinfo)
     )
 
-    df_values.loc[
-        df["name_ranges"]
-        == "ListOfOmittedDisclosuresDeemedToBeClassifiedOrSensitiveInformation",
-        "cell_values",
-    ] = values_classifiedinfo
+    set_DFcell(df_values, "cell_values", values_classifiedinfo, filter)
 
 
 def adjust_data_missing_first2versions(
@@ -390,19 +429,14 @@ def adjust_data_missing_first2versions(
         sheet: str = comb["sheet"]
         rng: str = comb["rng"]
         val = make_value([[bool]])
-        df.loc[(df["sheets"] == sheet) & (df["cell_ranges"] == rng), "cell_values"] = (
-            val
-        )
+        set_DFcell(df, "cell_values", val, ("sheets", sheet), ("cell_ranges", rng))
 
     # resolving whether undertaking operates in more than one country
-    length = (
-        df_new_wv.loc[
-            df_new_wv["name_ranges"] == "CountryOfEmploymentContractAxis",
-            "cell_values",
-        ]
-        .values[0]
-        .count_uniques()
-    )
+    COUNTRIES_EMPLOYMENT_NR = "CountryOfEmploymentContractAxis"
+    length = get_DFcell(
+        df_new_wv, "cell_values", ("name_ranges", COUNTRIES_EMPLOYMENT_NR)
+    ).count_uniques()
+
     if length > 2:
         add_TrueOrFalse_to_df(
             missingNR_df_new_wv, {"sheet": "Social Disclosures", "rng": "$E$27"}, True
@@ -447,14 +481,9 @@ def assess_energyConsumption_validation(df: pd.DataFrame, c: IssuesCollector):
     and appends an issue to issuesCollector list since
     the newest version should display a validation error next to the energy cons. cells."""
 
-    if (
-        df.loc[
-            (df["sheets"] == "Fuel Converter") & (df["cell_ranges"] == "$C$12"),
-            "cell_values",
-        ]
-        .tolist()[0]
-        .topleft()
-    ):
+    filter1 = ("sheets", "Fuel Converter")
+    filter2 = ("cell_ranges", "$C$12")
+    if get_DFcell(df, "cell_values", filter1, filter2).topleft():
         c.issues.append(
             "Issues in Energy Consumption sums. Please check the Environmental Disclosures and the Fuel Converter sheets."
         )
