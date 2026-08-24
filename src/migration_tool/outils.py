@@ -1,5 +1,10 @@
-from typing import cast, Dict, Any
+from __future__ import annotations
+from typing import cast, Dict, Any, TYPE_CHECKING
 from dataclasses import dataclass
+import sys
+
+if TYPE_CHECKING:
+    from .tool import IssuesCollector
 
 import pandas as pd
 from openpyxl import Workbook
@@ -8,8 +13,11 @@ from openpyxl.utils import absolute_coordinate, quote_sheetname, range_boundarie
 from openpyxl.workbook.defined_name import DefinedName
 
 from .classes import Shape, Value, check_formula, make_shape, make_value
-from .tool import IssuesCollector
 from .data.validations import VersionCollection
+
+
+VERSION_NR = "template_reporting_template_version"
+OMITTEDDISCL_NR = "ListOfOmittedDisclosuresDeemedToBeClassifiedOrSensitiveInformation"
 
 
 def get_DFcell(df: pd.DataFrame, return_col: str, *colfilters_pairs: tuple[str, Any]):
@@ -49,38 +57,40 @@ def set_DFcell(
     df.loc[mask, paste_col] = value
 
 
-@dataclass
-class NameRangeRefs:
-    sheet: str
-    range: str
-
-
-def try_fetch_NR_refs(NR: str, dn, c: IssuesCollector) -> NameRangeRefs:
+def try_fetch_NR_refs(NR: str, dn, c: IssuesCollector) -> tuple:
     try:
         destination = list(dn.destinations)
     except AttributeError:
         issue = f"Name range '{NR}' has an unreadable destination (value: {dn.attr_text!r}). This name range has been ignored in the migration."
         c.issues.append(issue)
-        return NameRangeRefs("", "")
+        return "", ""
 
     if len(destination) != 1:
         issue = f"Name range '{NR}' has {len(destination)} destinations (expected 1; value: {dn.attr_text!r}). This name range has been ignored in the migration."
         c.issues.append(issue)
-        return NameRangeRefs("", "")
+        return "", ""
 
     sheet, range = destination[0]
 
-    return NameRangeRefs(sheet, range)
+    return sheet, range
 
 
 def get_NR_singlevalue(wb: Workbook, name: str, c: IssuesCollector) -> Any:
     dn = wb.defined_names[name]
-    refs = try_fetch_NR_refs(name, dn, c)
-    if not refs.sheet and not refs.range:
+    sheet, range = try_fetch_NR_refs(name, dn, c)
+    if not sheet and not range:
         return None
 
-    shape = make_shape(refs.range)
-    return wb[refs.sheet].cell(shape._left, shape._top).value
+    shape = make_shape(range)
+    return wb[sheet].cell(shape._top, shape._left).value
+
+
+def get_version(wb: Workbook, c: IssuesCollector) -> str:
+    version = get_NR_singlevalue(wb, VERSION_NR, c)
+    if version is None:
+        print("Program cannot continue without retrieving the version of the Template.")
+        sys.exit()
+    return version
 
 
 def check_status_incomplete(wb: Workbook, status: str, c: IssuesCollector) -> bool:
@@ -112,9 +122,9 @@ def create_table_of_contents(wb_values) -> Dict[str, int]:
     """Create a dict with keys as names of ToC sections and values as the corresponding row numbers in 'Table of Contents & Validation' sheet.
     If there is any change in where the ToC is located in the sheet, or changes in the range of cells utilised for it, this function should be updated."""
     _keys = [
-        cell[0].value for cell in wb_values["Table of Contents & Validation"]["B9:B70"]
+        cell[0].value for cell in wb_values["Table of Contents & Validation"]["B9:B65"]
     ]
-    _values = list(range(9, 71))  # row numbers
+    _values = list(range(9, 66))  # row numbers
     return dict(zip(_keys, _values))
 
 
@@ -131,10 +141,7 @@ def access_NR_table(
     rows: list[tuple[str, str | None, str | None, Shape]] = []
 
     for NR, dn in pyxl_NR.items():
-        refs = try_fetch_NR_refs(NR, dn, c)
-
-        sheet: str | None = refs.sheet
-        rng = refs.range
+        sheet, rng = try_fetch_NR_refs(NR, dn, c)
 
         if old_sheet_names is not None and sheet not in old_sheet_names:
             c.issues.append(
@@ -332,10 +339,10 @@ def paste_values(pyxl: Workbook, df, NR=None, table_of_contents=None, version=No
             merged_list.append(range_boundaries(str(merged[i]))[:2])
         merged_loc = pd.concat([merged_loc, pd.DataFrame({sheet: merged_list})], axis=1)
 
-    add_checkbox = [
-        "SiteLocatedInABiodiversitySensitiveArea",
-        "SiteLocatedNearABiodiversitySensitiveArea",
-    ]
+    SITE_IN_BIOAREA_NR = "SiteLocatedInABiodiversitySensitiveArea"
+    SITE_NEAR_BIOAREA_NR = "SiteLocatedNearABiodiversitySensitiveArea"
+
+    add_checkbox = (SITE_IN_BIOAREA_NR, SITE_NEAR_BIOAREA_NR)
 
     for i in range(len(df)):
         sheet = pyxl[df["sheets"][i]]
@@ -345,10 +352,7 @@ def paste_values(pyxl: Workbook, df, NR=None, table_of_contents=None, version=No
 
         # specific handling for list of classified information
         if table_of_contents is not None:
-            if (
-                df["name_ranges"][i]
-                == "ListOfOmittedDisclosuresDeemedToBeClassifiedOrSensitiveInformation"
-            ):
+            if df["name_ranges"][i] == OMITTEDDISCL_NR:
                 classified_info_handling(value, table_of_contents, pyxl, version)
                 continue
 
@@ -406,9 +410,6 @@ def adjust_classified_info(
     Cannot do this in copy_values or build_values method because it needs to be done on value-only workbooks.
     Needed to migrate classified information choices, which in newer templates are selected via the ToC."""
 
-    OMITTEDDISCL_NR = (
-        "ListOfOmittedDisclosuresDeemedToBeClassifiedOrSensitiveInformation"
-    )
     filter: tuple = ("name_ranges", OMITTEDDISCL_NR)
 
     sheet_generalinfo = wb_values["General Information"]
@@ -458,7 +459,7 @@ def adjust_data_missing_first2versions(
         )
 
 
-def create_or_update_migration_status(pyxl) -> None:
+def create_or_update_migration_status(pyxl: Workbook) -> None:
     """Create or update the name range template_migration_status in the Introduction sheet, cell D1.
     The cell returns TRUE if the migration process has been completed, but will be processed as None in openpyxl (data_only=True) mode
     if the workbook has not been opened after migration.

@@ -29,14 +29,13 @@ from .outils import (
     copy_values,
     create_or_update_migration_status,
     create_table_of_contents,
-    get_NR_singlevalue,
+    get_version,
     paste_values,
 )
 from .data.validations import VersionCollection
 
 FilePathOrBinaryBlob: TypeAlias = str | Path | io.BufferedIOBase
 NEW_TEMPLATE_NAME = "VSME-Digital-Template-1.3.0.xlsx"
-VERSION_NR = "template_reporting_template_version"
 STATUS_NR = "template_overall_validation_status"
 
 
@@ -145,8 +144,8 @@ def migrate_workbook(
 
     table_of_contents = _table_of_contents()
 
-    version_cell = get_NR_singlevalue(old_wb_obj, VERSION_NR, c)
-    version_cell_new = get_NR_singlevalue(new_wb_empty, VERSION_NR, c)
+    version_cell = get_version(old_wb_obj, c)
+    version_cell_new = get_version(new_wb_empty, c)
 
     old_wb_sheet_names = [sheet.title for sheet in old_wb_obj.worksheets]
 
