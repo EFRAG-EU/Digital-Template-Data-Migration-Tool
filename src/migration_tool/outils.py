@@ -9,8 +9,14 @@ if TYPE_CHECKING:
 import pandas as pd
 from openpyxl import Workbook
 from openpyxl.styles import Alignment
-from openpyxl.utils import absolute_coordinate, quote_sheetname, range_boundaries
+from openpyxl.utils import (
+    absolute_coordinate,
+    quote_sheetname,
+    range_boundaries,
+    get_column_letter,
+)
 from openpyxl.workbook.defined_name import DefinedName
+from openpyxl.comments import Comment
 
 from .classes import Shape, Value, check_formula, make_shape, make_value
 from .data.validations import VersionCollection
@@ -235,6 +241,46 @@ def change_wastes(df: pd.DataFrame, mapping, c: IssuesCollector):
     set_DFcell(
         df, "cell_values", make_value(new_wastes), ("name_ranges", WASTECATEGORIES_NR)
     )
+
+
+def adjust_wasteValues(
+    old_df: pd.DataFrame, new_df: pd.DataFrame, new_wb: Workbook, c: IssuesCollector
+) -> pd.DataFrame:
+    REUSE_RECYCLE_NR = "WasteDivertedToRecycleOrReuseMass"
+    DIVERTED_NR = "WasteDirectedToDisposalMass"
+    TOTMASS_NR = "WasteGeneratedMass"
+
+    # getting shape of new name range
+    sheet, rng = try_fetch_NR_refs(TOTMASS_NR, new_wb.defined_names[TOTMASS_NR], c)
+    shape = make_shape(rng)
+
+    # calculation from previous mass of reused/recycled and diverted waste
+    reuse_recycle = cast(
+        Value, get_DFcell(old_df, "cell_values", ("name_ranges", REUSE_RECYCLE_NR))
+    )
+    diverted = cast(
+        Value, get_DFcell(old_df, "cell_values", ("name_ranges", DIVERTED_NR))
+    )
+    tot_waste = reuse_recycle.sum_two_int_ranges(diverted)
+
+    # add helper comments to each populated cell in the range
+    comment = "Old 'Waste diverted to recycle or reuse' cell value: "
+    block = reuse_recycle.values()
+    for row in range(shape.top(), shape.top() + len(block)):
+        if block and (reuse_recycle_sum := block[row - shape.top()][0]) is not None:
+            cell = new_wb[sheet].cell(row=row, column=shape.left())
+            cell.comment = Comment(f"{comment}{reuse_recycle_sum}", "Migration tool")
+
+    # adding new row with calculated values to dataframe
+    new_df_row = {
+        "name_ranges": TOTMASS_NR,
+        "sheets": sheet,
+        "cell_ranges": rng,
+        "cell_shapes": shape,
+        "cell_values": tot_waste,
+    }
+    new_df.loc[len(new_df)] = new_df_row
+    return new_df
 
 
 def convert_months(df: pd.DataFrame, version: str, dateLabels: tuple) -> None:

@@ -20,6 +20,7 @@ from .outils import (
     access_NR_table,
     adjust_classified_info,
     adjust_data_missing_first2versions,
+    adjust_wasteValues,
     apply_changes_NR,
     assess_energyConsumption_validation,
     change_wastes,
@@ -35,7 +36,7 @@ from .outils import (
 from .data.validations import VersionCollection
 
 FilePathOrBinaryBlob: TypeAlias = str | Path | io.BufferedIOBase
-NEW_TEMPLATE_NAME = "VSME-Digital-Template-1.3.0.xlsx"
+NEW_TEMPLATE_NAME = "VS-Digital-Template-2.0.xlsx"
 STATUS_NR = "template_overall_validation_status"
 
 
@@ -189,6 +190,9 @@ def migrate_workbook(
 
     if version_cell in ["1.0.0", "1.0.1", "1.1.0"]:
         assess_energyConsumption_validation(missingNR_df_new_wv, c)
+
+    if version_cell in ["1.0.0", "1.0.1", "1.1.0", "1.1.1", "1.2.0", "1.3.0"]:
+        df_new_wv = adjust_wasteValues(df_old_tomerge, df_new_wv, new_wb_empty, c)
 
     paste_values(new_wb_empty, missingNR_df_new_wv)
     paste_values(

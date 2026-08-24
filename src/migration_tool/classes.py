@@ -205,6 +205,14 @@ class Value:
     def count_uniques(self) -> int:
         return len({item for sublist in self._block for item in sublist})
 
+    def sum_two_int_ranges(self, range_valueObj: "Value") -> "Value":
+        """Sum two 1-column integer ranges"""
+        range_sum = [
+            [i[0] + y[0]] if type(i[0]) is int and type(y[0]) is int else [None]
+            for i, y in zip(self._block, range_valueObj._block)
+        ]
+        return make_value(range_sum)
+
     def paste(self, sheet: Worksheet, shape: Shape) -> None:
         if not shape:
             return
