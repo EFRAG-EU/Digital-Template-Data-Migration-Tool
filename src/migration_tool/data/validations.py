@@ -42,6 +42,9 @@ class VersionCollection:
         self.versions.append(v)
         return v
 
+    def get_versions(self) -> list[str]:
+        return [v.version for v in self.versions]
+
     def get_version(self, version: str) -> dict[str, str]:
         return {
             trios.label: f"{trios.sheet}!{trios.range}"
@@ -61,6 +64,25 @@ class VersionCollection:
     def get_ranges(self, version: str) -> list[str | None]:
         labelRefs = self.get_version(version)
         return [convertToNone(ref.split("!")[1]) for ref in labelRefs.values()]
+
+    def get_refs_from_label(self, label: str) -> dict[str, str]:
+        return {
+            version.version: f"{ref.sheet}!{ref.range}"
+            for version in self.versions
+            for ref in version.missing_data
+            if ref.label == label
+        }
+
+    def get_refs_from_sheet(self, sheet: str) -> dict[str, dict[str, str]]:
+        result: dict[str, dict[str, str]] = {}
+
+        for version in self.versions:
+            for ref in version.missing_data:
+                if ref.sheet == sheet:
+                    result.setdefault(version.version, {})
+                    result[version.version][ref.label] = f"{ref.sheet}!{ref.range}"
+
+        return result
 
     @classmethod
     def from_dict(cls, data: dict[str, dict[str, str]]) -> "VersionCollection":

@@ -1,65 +1,72 @@
 {
-    "1.0.0": [
-        "NumberOfPermanentContactEmployees",
-        "DescriptionOfTheEffectiveParticipationOfWorkersUsersOrOtherinterestedPartiesOrCommunitiesInGovernance",
-        "MostSeniorLevelAccountableForImplementationOfPracticesPoliciesAndOrFutureInitiatives",
-        "RevenueDerivedFromControversialWeaponsAntiPersonnelMinesClusterMunitionsChemicalWeaponsAndBiologicalWeapons",
-        "AmountOfWaterWithdrawnAtSitesLocatedInAreasOfHighWaterStress",
-        "NumberOfFatalitiesAsAResultOfWorkRelatedInjuriesAndWorkRelatedIllHealth",
-        "ListOfOmittedDisclosuresDeemedToBeClassifiedOrSensitiveInformation"
-    ],
-    "1.0.1": [
-        "NumberOfPermanentContactEmployees",
-        "DescriptionOfTheEffectiveParticipationOfWorkersUsersOrOtherinterestedPartiesOrCommunitiesInGovernance",
-        "MostSeniorLevelAccountableForImplementationOfPracticesPoliciesAndOrFutureInitiatives",
-        "RevenueDerivedFromControversialWeaponsAntiPersonnelMinesClusterMunitionsChemicalWeaponsAndBiologicalWeapons",
-        "AmountOfWaterWithdrawnAtSitesLocatedInAreasOfHighWaterStress",
-        "NumberOfFatalitiesAsAResultOfWorkRelatedInjuriesAndWorkRelatedIllHealth",
-        "ListOfOmittedDisclosuresDeemedToBeClassifiedOrSensitiveInformation"
-    ],
-    "1.1.0": [
-        "NumberOfPermanentContractEmployees",
-        "DescriptionOfTheEffectiveParticipationOfWorkersUsersOrOtherInterestedPartiesOrCommunitiesInGovernance",
-        "MostSeniorLevelAccountableForImplementationOfPolicies",
-        "RevenueDerivedFromControversialWeaponsAntiPersonnelMinesClusterMunitionsChemicalWeaponsAndBiologicalWeapons",
-        "AmountOfWaterWithdrawnAtSitesLocatedInAreasOfHighWaterStress",
-        "NumberOfFatalitiesAsAResultOfWorkRelatedInjuriesAndWorkRelatedIllHealth",
-        "ListOfOmittedDisclosuresDeemedToBeClassifiedOrSensitiveInformation"
-    ],
-    "1.1.1": [
-        "NumberOfPermanentContractEmployees",
-        "DescriptionOfTheEffectiveParticipationOfWorkersUsersOrOtherInterestedPartiesOrCommunitiesInGovernance",
-        "MostSeniorLevelAccountableForImplementationOfPolicies",
-        "RevenueDerivedFromControversialWeaponsAntiPersonnelMinesClusterMunitionsChemicalWeaponsAndBiologicalWeapons",
-        "AmountOfWaterWithdrawnAtSitesLocatedInAreasOfHighWaterStress",
-        "NumberOfFatalitiesAsAResultOfWorkRelatedInjuriesAndWorkRelatedIllHealth",
-        "ListOfOmittedDisclosuresDeemedToBeClassifiedOrSensitiveInformation"
-    ],
-    "1.2.0": [
-        "NumberOfPermanentContractEmployees",
-        "DescriptionOfTheEffectiveParticipationOfWorkersUsersOrOtherInterestedPartiesOrCommunitiesInGovernance",
-        "MostSeniorLevelAccountableForImplementationOfPolicies",
-        "RevenueDerivedFromControversialWeaponsAntiPersonnelMinesClusterMunitionsChemicalWeaponsAndBiologicalWeapons",
-        "AmountOfWaterWithdrawnAtSitesLocatedInAreasOfHighWaterStress",
-        "NumberOfFatalitiesAsAResultOfWorkRelatedInjuriesAndWorkRelatedIllHealth",
-        "ListOfOmittedDisclosuresDeemedToBeClassifiedOrSensitiveInformation"
-    ],
-    "1.3.0": [
-        "NumberOfPermanentContractEmployees",
-        "DescriptionOfTheEffectiveParticipationOfWorkersUsersOrOtherInterestedPartiesOrCommunitiesInGovernance",
-        "MostSeniorLevelAccountableForImplementationOfPolicies",
-        "RevenueDerivedFromControversialWeaponsAntiPersonnelMinesClusterMunitionsChemicalWeaponsAndBiologicalWeapons",
-        "AmountOfWaterWithdrawnAtSitesLocatedInAreasOfHighWaterStress",
-        "NumberOfFatalitiesAsAResultOfWorkRelatedInjuriesAndWorkRelatedIllHealth",
-        "ListOfOmittedDisclosuresDeemedToBeClassifiedOrSensitiveInformation"
-    ],
-    "2.0.0": [
-        "NumberOfPermanentContractEmployees",
-        "DescriptionOfTheEffectiveParticipationOfWorkersUsersOrOtherInterestedPartiesOrCommunitiesInGovernance",
-        "MostSeniorLevelInTheUndertakingAccountableForImplementationOfPracticesPoliciesAndFutureInitiatives",
-        "RevenueDerivedFromTheProhibitedWeaponsIndustryAntiPersonnelMinesClusterMunitionsChemicalWeaponsAndBiologicalWeapons",
-        "AmountOfWaterConsumedAtSitesLocatedInAreasWithWaterStress",
-        "SumOfFatalitiesAsAResultOfRecordableWorkRelatedAccidentsAndRecordableWorkRelatedIllHealth",
-        "ListOfOmittedDisclosures"
-    ]
+  "1.0.0": [
+    "NumberOfPermanentContactEmployees",
+    "DescriptionOfTheEffectiveParticipationOfWorkersUsersOrOtherinterestedPartiesOrCommunitiesInGovernance",
+    "MostSeniorLevelAccountableForImplementationOfPracticesPoliciesAndOrFutureInitiatives",
+    "RevenueDerivedFromControversialWeaponsAntiPersonnelMinesClusterMunitionsChemicalWeaponsAndBiologicalWeapons",
+    "AmountOfWaterWithdrawnAtSitesLocatedInAreasOfHighWaterStress",
+    "TotalWasteRecycledReusedAndDirectedToDisposalMass_unit",
+    "NumberOfFatalitiesAsAResultOfWorkRelatedInjuriesAndWorkRelatedIllHealth",
+    "ListOfOmittedDisclosuresDeemedToBeClassifiedOrSensitiveInformation"
+  ],
+  "1.0.1": [
+    "NumberOfPermanentContactEmployees",
+    "DescriptionOfTheEffectiveParticipationOfWorkersUsersOrOtherinterestedPartiesOrCommunitiesInGovernance",
+    "MostSeniorLevelAccountableForImplementationOfPracticesPoliciesAndOrFutureInitiatives",
+    "RevenueDerivedFromControversialWeaponsAntiPersonnelMinesClusterMunitionsChemicalWeaponsAndBiologicalWeapons",
+    "AmountOfWaterWithdrawnAtSitesLocatedInAreasOfHighWaterStress",
+    "TotalWasteRecycledReusedAndDirectedToDisposalMass_unit",
+    "NumberOfFatalitiesAsAResultOfWorkRelatedInjuriesAndWorkRelatedIllHealth",
+    "ListOfOmittedDisclosuresDeemedToBeClassifiedOrSensitiveInformation"
+  ],
+  "1.1.0": [
+    "NumberOfPermanentContractEmployees",
+    "DescriptionOfTheEffectiveParticipationOfWorkersUsersOrOtherInterestedPartiesOrCommunitiesInGovernance",
+    "MostSeniorLevelAccountableForImplementationOfPolicies",
+    "RevenueDerivedFromControversialWeaponsAntiPersonnelMinesClusterMunitionsChemicalWeaponsAndBiologicalWeapons",
+    "AmountOfWaterWithdrawnAtSitesLocatedInAreasOfHighWaterStress",
+    "TotalWasteRecycledReusedAndDirectedToDisposalMass_unit",
+    "NumberOfFatalitiesAsAResultOfWorkRelatedInjuriesAndWorkRelatedIllHealth",
+    "ListOfOmittedDisclosuresDeemedToBeClassifiedOrSensitiveInformation"
+  ],
+  "1.1.1": [
+    "NumberOfPermanentContractEmployees",
+    "DescriptionOfTheEffectiveParticipationOfWorkersUsersOrOtherInterestedPartiesOrCommunitiesInGovernance",
+    "MostSeniorLevelAccountableForImplementationOfPolicies",
+    "RevenueDerivedFromControversialWeaponsAntiPersonnelMinesClusterMunitionsChemicalWeaponsAndBiologicalWeapons",
+    "AmountOfWaterWithdrawnAtSitesLocatedInAreasOfHighWaterStress",
+    "TotalWasteRecycledReusedAndDirectedToDisposalMass_unit",
+    "NumberOfFatalitiesAsAResultOfWorkRelatedInjuriesAndWorkRelatedIllHealth",
+    "ListOfOmittedDisclosuresDeemedToBeClassifiedOrSensitiveInformation"
+  ],
+  "1.2.0": [
+    "NumberOfPermanentContractEmployees",
+    "DescriptionOfTheEffectiveParticipationOfWorkersUsersOrOtherInterestedPartiesOrCommunitiesInGovernance",
+    "MostSeniorLevelAccountableForImplementationOfPolicies",
+    "RevenueDerivedFromControversialWeaponsAntiPersonnelMinesClusterMunitionsChemicalWeaponsAndBiologicalWeapons",
+    "AmountOfWaterWithdrawnAtSitesLocatedInAreasOfHighWaterStress",
+    "TotalWasteRecycledReusedAndDirectedToDisposalMass_unit",
+    "NumberOfFatalitiesAsAResultOfWorkRelatedInjuriesAndWorkRelatedIllHealth",
+    "ListOfOmittedDisclosuresDeemedToBeClassifiedOrSensitiveInformation"
+  ],
+  "1.3.0": [
+    "NumberOfPermanentContractEmployees",
+    "DescriptionOfTheEffectiveParticipationOfWorkersUsersOrOtherInterestedPartiesOrCommunitiesInGovernance",
+    "MostSeniorLevelAccountableForImplementationOfPolicies",
+    "RevenueDerivedFromControversialWeaponsAntiPersonnelMinesClusterMunitionsChemicalWeaponsAndBiologicalWeapons",
+    "AmountOfWaterWithdrawnAtSitesLocatedInAreasOfHighWaterStress",
+    "TotalWasteRecycledReusedAndDirectedToDisposalMass_unit",
+    "NumberOfFatalitiesAsAResultOfWorkRelatedInjuriesAndWorkRelatedIllHealth",
+    "ListOfOmittedDisclosuresDeemedToBeClassifiedOrSensitiveInformation"
+  ],
+  "2.0.0": [
+    "NumberOfPermanentContractEmployees",
+    "DescriptionOfTheEffectiveParticipationOfWorkersUsersOrOtherInterestedPartiesOrCommunitiesInGovernance",
+    "MostSeniorLevelInTheUndertakingAccountableForImplementationOfPracticesPoliciesAndFutureInitiatives",
+    "RevenueDerivedFromTheProhibitedWeaponsIndustryAntiPersonnelMinesClusterMunitionsChemicalWeaponsAndBiologicalWeapons",
+    "AmountOfWaterConsumedAtSitesLocatedInAreasWithWaterStress",
+    "WasteGeneratedMass_unit",
+    "SumOfFatalitiesAsAResultOfRecordableWorkRelatedAccidentsAndRecordableWorkRelatedIllHealth",
+    "ListOfOmittedDisclosures"
+  ]
 }
