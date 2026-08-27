@@ -359,7 +359,7 @@ def copy_values(pyxl: Workbook, df: pd.DataFrame, *, NRflag: bool) -> pd.DataFra
         return df[["labels", "cell_values"]]
 
 
-def paste_values(pyxl: Workbook, df, NR=None, table_of_contents=None, version=None):
+def paste_values(pyxl: Workbook, df, version, NR=None, table_of_contents=None):
     """Paste values from a DataFrame column into an openpyxl workbook.
 
     Treatment for merged cells (merged only across columns in VSMEs):
@@ -388,6 +388,15 @@ def paste_values(pyxl: Workbook, df, NR=None, table_of_contents=None, version=No
 
     add_checkbox = (SITE_IN_BIOAREA_NR, SITE_NEAR_BIOAREA_NR)
 
+    # the following missingNR ranges have shrinked in VS, so they need specific handling just for v 1.2.0
+    # (v 1.2.0 introduced the checkboxes in the ToC but not their related name ranges)
+    PROBLEMATIC_TOC_REFERENCES = [
+        "B3_B4_ToC",
+        "B5_ToC",
+        "B8_B9_ToC",
+        "C8_C9_ToC",
+    ]
+
     for i in range(len(df)):
         sheet = pyxl[df["sheets"][i]]
         rng = df["cell_ranges"][i]
@@ -399,6 +408,12 @@ def paste_values(pyxl: Workbook, df, NR=None, table_of_contents=None, version=No
             if df["name_ranges"][i] == OMITTEDDISCL_NR:
                 classified_info_handling(value, table_of_contents, pyxl, version)
                 continue
+        else:
+            if (
+                version == "1.2.0"
+                and (label := df["labels"][i]) in PROBLEMATIC_TOC_REFERENCES
+            ):
+                value = classified_info_handling_120(value, label)
 
         if value.values() is None or pd.isna(rng):  # nothing to paste
             continue
@@ -432,9 +447,9 @@ def classified_info_handling(value, table_of_contents, pyxl, version) -> None:
     For migrations from 1.2.0 to newer versions, the cells are hard-coded in missingNR_df.
     """
 
-    for input in value.values():
-        if input[0] is not None:
-            if version in ["1.0.0", "1.0.1", "1.1.0", "1.1.1"]:
+    if version in ["1.0.0", "1.0.1", "1.1.0", "1.1.1"]:
+        for input in value.values():
+            if input[0] is not None:
                 match = [
                     s for s in table_of_contents.keys() if input[0][0:2] in s
                 ]  # matches based on first 2 characters
@@ -447,23 +462,19 @@ def classified_info_handling(value, table_of_contents, pyxl, version) -> None:
                             cell(row=row, column=4).value = True
 
 
-def adjust_classified_info(
-    df: pd.DataFrame, df_values: pd.DataFrame, wb_values: Workbook
-) -> None:
-    """Copy classified info values for version where data is already in cells with formulas.
-    Cannot do this in copy_values or build_values method because it needs to be done on value-only workbooks.
-    Needed to migrate classified information choices, which in newer templates are selected via the ToC."""
+def classified_info_handling_120(value: Value, label: str) -> Value:
+    """Remove based on changes in the 1.2.0 and 2.0.0 ToCs. See the Templates for more."""
+    match label:
+        case "B3_B4_ToC":
+            value.remove_row(3)  # 3 means the 4th item
+        case "B5_ToC":
+            value.remove_row(1)
+        case "B8_B9_ToC":
+            value.remove_row(4)
+        case "C8_C9_ToC":
+            value.remove_row(1)
 
-    filter: tuple = ("name_ranges", OMITTEDDISCL_NR)
-
-    sheet_generalinfo = wb_values["General Information"]
-    shape_classifiedinfo: Shape = get_DFcell(df, "cell_shapes", filter)
-
-    values_classifiedinfo = make_value(
-        shape_classifiedinfo.build_values(sheet_generalinfo)
-    )
-
-    set_DFcell(df_values, "cell_values", values_classifiedinfo, filter)
+    return value
 
 
 def adjust_countriesOfOperation(

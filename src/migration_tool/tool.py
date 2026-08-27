@@ -19,7 +19,6 @@ from .outils import (
     access_missingNR_table,
     access_NR_table,
     add_helperComments_social,
-    adjust_classified_info,
     adjust_countriesOfOperation,
     adjust_wasteValues,
     apply_changes_NR,
@@ -167,8 +166,6 @@ def migrate_workbook(
     # cell and, for 1.2.0+, the classified-info column (both are formula cells).
     with _open_cached_values(old_wb) as old_values:
         incomplete = check_status_incomplete(old_values, STATUS_NR, c)
-        if version_cell not in ["1.0.0", "1.0.1", "1.1.0", "1.1.1"]:
-            adjust_classified_info(df_old, df_old_wv, old_values)
         if version_cell in ["1.0.0", "1.0.1", "1.1.0", "1.1.1", "1.2.0", "1.3.0"]:
             c.issues.append(
                 "New Template requires explicit statement of compliance (see 'General Information' for more)."
@@ -202,7 +199,7 @@ def migrate_workbook(
     if version_cell in ["1.0.0", "1.0.1", "1.1.0", "1.1.1", "1.2.0", "1.3.0"]:
         df_new_wv = adjust_wasteValues(df_old_tomerge, df_new_wv, new_wb_empty, c)
 
-    paste_values(new_wb_empty, missingNR_df_new_wv)
+    paste_values(new_wb_empty, missingNR_df_new_wv, version_cell)
     paste_values(
         new_wb_empty,
         df_new_wv,

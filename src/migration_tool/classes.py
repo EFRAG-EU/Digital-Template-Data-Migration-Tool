@@ -213,6 +213,10 @@ class Value:
         ]
         return make_value(range_sum)
 
+    def remove_row(self, index: int) -> None:
+        """Remove row (rows are always saved as lists) based on index provided"""
+        del self._block[index]
+
     def paste(self, sheet: Worksheet, shape: Shape) -> None:
         if not shape:
             return
@@ -272,6 +276,9 @@ class NullValue(Value):
         return 0
 
     def paste(self, sheet: Worksheet, shape: Shape) -> None:
+        return None
+
+    def remove_row(self, index: int) -> None:
         return None
 
 
