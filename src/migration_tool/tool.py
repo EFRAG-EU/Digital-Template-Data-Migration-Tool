@@ -18,8 +18,9 @@ from .decorators import cached_copy
 from .outils import (
     access_missingNR_table,
     access_NR_table,
+    add_helperComments_social,
     adjust_classified_info,
-    adjust_data_missing_first2versions,
+    adjust_countriesOfOperation,
     adjust_wasteValues,
     apply_changes_NR,
     assess_energyConsumption_validation,
@@ -168,6 +169,13 @@ def migrate_workbook(
         incomplete = check_status_incomplete(old_values, STATUS_NR, c)
         if version_cell not in ["1.0.0", "1.0.1", "1.1.0", "1.1.1"]:
             adjust_classified_info(df_old, df_old_wv, old_values)
+        if version_cell in ["1.0.0", "1.0.1", "1.1.0", "1.1.1", "1.2.0", "1.3.0"]:
+            c.issues.append(
+                "New Template requires explicit statement of compliance (see 'General Information' for more)."
+            )
+            add_helperComments_social(
+                old_values, new_wb_empty, missingNR_df_new, version_cell, c
+            )
 
     # "Incomplete" message first
     if incomplete:
@@ -186,7 +194,7 @@ def migrate_workbook(
     missingNR_df_new_wv = missingNR_df_new.merge(missingNR_old_values)
 
     if version_cell in ["1.0.0", "1.0.1"]:
-        adjust_data_missing_first2versions(df_new_wv, missingNR_df_new_wv, old_wb_obj)
+        adjust_countriesOfOperation(df_new_wv, missingNR_df_new_wv, old_wb_obj)
 
     if version_cell in ["1.0.0", "1.0.1", "1.1.0"]:
         assess_energyConsumption_validation(missingNR_df_new_wv, c)

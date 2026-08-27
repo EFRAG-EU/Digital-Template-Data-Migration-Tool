@@ -1,6 +1,5 @@
 from __future__ import annotations
 from typing import cast, Dict, Any, TYPE_CHECKING
-from dataclasses import dataclass
 import sys
 
 if TYPE_CHECKING:
@@ -13,7 +12,6 @@ from openpyxl.utils import (
     absolute_coordinate,
     quote_sheetname,
     range_boundaries,
-    get_column_letter,
 )
 from openpyxl.workbook.defined_name import DefinedName
 from openpyxl.comments import Comment
@@ -402,7 +400,7 @@ def paste_values(pyxl: Workbook, df, NR=None, table_of_contents=None, version=No
                 classified_info_handling(value, table_of_contents, pyxl, version)
                 continue
 
-        if value.values() is None:  # nothing to paste (null value or a formula)
+        if value.values() is None or pd.isna(rng):  # nothing to paste
             continue
 
         if shape.isonecell():
@@ -468,7 +466,7 @@ def adjust_classified_info(
     set_DFcell(df_values, "cell_values", values_classifiedinfo, filter)
 
 
-def adjust_data_missing_first2versions(
+def adjust_countriesOfOperation(
     df_new_wv: pd.DataFrame, missingNR_df_new_wv: pd.DataFrame, old_wb: Workbook
 ) -> None:
 
@@ -484,7 +482,7 @@ def adjust_data_missing_first2versions(
         df_new_wv, "cell_values", ("name_ranges", COUNTRIES_EMPLOYMENT_NR)
     ).count_uniques()
 
-    if length > 2:
+    if length > 2:  # > 2 because one value is None
         add_TrueOrFalse_to_df(
             missingNR_df_new_wv, {"sheet": "Social Disclosures", "rng": "$E$27"}, True
         )
@@ -503,6 +501,68 @@ def adjust_data_missing_first2versions(
         add_TrueOrFalse_to_df(
             missingNR_df_new_wv, {"sheet": "Fuel Converter", "rng": "$D$23"}, False
         )
+
+
+def add_helperComments_social(
+    old_wb_values: Workbook,
+    new_wb: Workbook,
+    missingNR_df: pd.DataFrame,
+    version: str,
+    c: IssuesCollector,
+) -> None:
+    """In VS (2.0.0), new cell data without name ranges have been added in Social Disclosures.
+    This function adds helper comments in the new workbook, taking relevant refs from the missing NR dataframe.
+    In the case of training hours, the average time per employee"""
+
+    # CELL: "Select whether the rate is per 100 or 500 full-time workers over a yearly time frame"
+    shape = cast(
+        Shape,
+        get_DFcell(
+            missingNR_df, "cell_shapes", ("labels", "WhetherRateIsPer50OrPer100")
+        ),
+    )
+    cell = new_wb["Social Disclosures"].cell(row=shape.top(), column=shape.left())
+    cell.comment = Comment("New field included with the VS release.", "Migration tool")
+
+    # CELL: "Is the undertaking is already required by EU law or other national regulations to report the percentage gap in pay between its female and male employees?"
+    shape = cast(
+        Shape,
+        get_DFcell(
+            missingNR_df, "cell_shapes", ("labels", "GenderPercentageGapRequiredByLaw")
+        ),
+    )
+    cell = new_wb["Social Disclosures"].cell(row=shape.top(), column=shape.left())
+    cell.comment = Comment(
+        "New field included with the VS release. Modify to TRUE if applicable.",
+        "Migration tool",
+    )
+
+    # TRAINING HOURS (old references will never change)
+    refs_averageTrainingHours = {
+        "1.0.0": "C71",
+        "1.0.1": "C71",
+        "1.1.0": "C72",
+        "1.1.1": "C162",
+        "1.2.0": "C162",
+        "1.3.0": "C162",
+    }
+    averageTrainingHours = old_wb_values["Social Disclosures"][
+        refs_averageTrainingHours[version]
+    ].value
+
+    shape = cast(
+        Shape,
+        get_DFcell(missingNR_df, "cell_shapes", ("labels", "TrainingHours")),
+    )
+    cell = new_wb["Social Disclosures"].cell(row=shape.top(), column=shape.left())
+    cell.comment = Comment(
+        f"Amended. Old 'Average number of annual training hours per employee' was {averageTrainingHours}",
+        "Migration tool",
+    )
+
+    c.issues.append(
+        "New required information in the 'Social Disclosures' sheet (see cell-level comments for more)."
+    )
 
 
 def create_or_update_migration_status(pyxl: Workbook) -> None:
