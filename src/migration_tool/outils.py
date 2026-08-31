@@ -567,7 +567,7 @@ def add_helperComments_social(
     )
     cell = new_wb["Social Disclosures"].cell(row=shape.top(), column=shape.left())
     cell.comment = Comment(
-        f"Amended. Old 'Average number of annual training hours per employee' was {averageTrainingHours}",
+        f"Old 'Average number of annual training hours per employee' was {averageTrainingHours}",
         "Migration tool",
     )
 

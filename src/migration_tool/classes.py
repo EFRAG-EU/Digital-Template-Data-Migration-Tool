@@ -224,18 +224,14 @@ class Value:
             for row in range(shape.top(), shape.bottom() + 1):
                 cell = sheet.cell(row=row, column=shape.left())
                 if not isinstance(cell, Cell):
-                    raise ValueError(
-                        f"Cannot assign value to merged cell at {cell.coordinate}"
-                    )
+                    continue
                 cell.value = self._block[row - shape.top()][0]
         else:
             for row in range(shape.top(), shape.bottom() + 1):
                 for col in range(shape.left(), shape.right() + 1):
                     cell = sheet.cell(row=row, column=col)
                     if not isinstance(cell, Cell):
-                        raise ValueError(
-                            f"Cannot assign value to merged cell at {cell.coordinate}"
-                        )
+                        continue
                     cell.value = self._block[row - shape.top()][col - shape.left()]
 
     def __bool__(self) -> bool:
