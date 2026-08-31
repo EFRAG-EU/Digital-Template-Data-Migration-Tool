@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import TypeAlias, cast
+from typing import TypeAlias, cast, overload
 
 from openpyxl.cell import Cell, MergedCell, ReadOnlyCell
 from openpyxl.utils import range_boundaries
@@ -158,6 +158,11 @@ class Value:
 
     def topleft(self) -> CellValue:
         return self._block[0][0]
+
+    @overload
+    def first_element_row(self) -> list[CellValue]: ...
+    @overload
+    def first_element_row(self, double_list: bool = True) -> Block: ...
 
     def first_element_row(self, double_list: bool = True) -> Block | list[CellValue]:
         """Keep only the first element of each row.

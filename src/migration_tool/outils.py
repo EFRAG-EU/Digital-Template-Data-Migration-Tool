@@ -229,10 +229,10 @@ def change_wastes(df: pd.DataFrame, mapping, c: IssuesCollector):
     new_wastes: list[list[str]] = []
     print_return = "not present in new Regulation. Please, see https://eur-lex.europa.eu/legal-content/EN/TXT/PDF/?uri=CELEX:32014D0955"
     for i in old_wastes:
-        if i is not None:
+        if isinstance(i, str):
             if pd.isna(new_cat := get_DFcell(mapping, "new", ("old", i))):
-                new_wastes.append([f"Waste category {i} {print_return}"])
-                c.issues.append(f"Waste category {i} {print_return}")
+                new_wastes.append([f"Waste category '{i.strip()}' {print_return}"])
+                c.issues.append(f"Waste category '{i.strip()}' {print_return}")
             else:
                 new_wastes.append([new_cat])
 
