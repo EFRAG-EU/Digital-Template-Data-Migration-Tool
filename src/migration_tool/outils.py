@@ -1,21 +1,132 @@
-from typing import Dict
+from __future__ import annotations
+from typing import cast, Dict, Any, TYPE_CHECKING
+import sys
+
+if TYPE_CHECKING:
+    from .tool import IssuesCollector
 
 import pandas as pd
 from openpyxl import Workbook
 from openpyxl.styles import Alignment
-from openpyxl.utils import absolute_coordinate, quote_sheetname, range_boundaries
-from openpyxl.workbook.defined_name import DefinedName
+from openpyxl.utils import (
+    absolute_coordinate,
+    quote_sheetname,
+    range_boundaries,
+)
+from openpyxl.workbook.defined_name import DefinedName, DefinedNameDict
+from openpyxl.comments import Comment
 
-from .classes import Shape, check_formula, make_shape, make_value
+from .classes import Shape, Value, check_formula, make_shape, make_value
+from .data.validations import VersionCollection
 
 
-def check_status_incomplete(openpyxl_obj) -> bool:
-    """Check if the workbook is filled out or not based on the value of the 'Status' cell in the 'Table of Contents & Validation' sheet"""
+VERSION_NR = "template_reporting_template_version"
+OMITTEDDISCL_NR = "ListOfOmittedDisclosuresDeemedToBeClassifiedOrSensitiveInformation"
 
-    status_cell = openpyxl_obj["Table of Contents & Validation"]["C3"].value
-    "INCOMPLETE, INCOMPLETE, UFÆRDIG , ONVOLLEDIG, INCOMPLET, UNVOLLSTÄNDIG, NEAMHIOMLÁN, INCOMPLETO, NEBAIGTA, NIEKOMPLETNY, INCOMPLETO, NEPOPOLNO, INCOMPLETO"
+
+def get_DFcell(df: pd.DataFrame, return_col: str, *colfilters_pairs: tuple[str, Any]):
+
+    if not colfilters_pairs:
+        raise TypeError("At least one pair (column, filter) is required.")
+
+    mask = pd.Series(True, index=df.index)
+
+    for col, filter in colfilters_pairs:
+        # & operator progressively builds the mask
+        mask &= df[col] == filter
+
+    result = df.loc[mask, return_col]
+
+    if len(result) != 1:
+        raise ValueError(f"Expected exactly one result, got {len(result)}")
+
+    return result.iloc[0]
+
+
+def set_DFcell(
+    df: pd.DataFrame, paste_col: str, value, *colfilters_pairs: tuple[str, Any]
+):
+
+    if not colfilters_pairs:
+        raise TypeError("At least one pair (column, filter) is required.")
+
+    mask = pd.Series(True, index=df.index)
+
+    for col, filter in colfilters_pairs:
+        mask &= df[col] == filter
+
+    if len(cell := df.loc[mask, paste_col]) != 1:
+        raise ValueError(f"Expected exactly one result, got {len(cell)}")
+
+    df.loc[mask, paste_col] = value
+
+
+def try_fetch_NR_refs(
+    NR: str, definedNames: DefinedNameDict, c: IssuesCollector
+) -> tuple:
+    try:
+        defn: DefinedName = definedNames[NR]
+    except KeyError:
+        c.issues.append(
+            f"Name range '{NR}' is not valid and has been ignored in the migration."
+        )
+        return "", ""
+
+    try:
+        dest = list(defn.destinations)
+    except AttributeError:
+        c.issues.append(
+            f"Name range '{NR}' has an unreadable destination (value: {defn.attr_text!r}). This name range has been ignored in the migration."
+        )
+        return "", ""
+
+    if len(dest) != 1:
+        c.issues.append(
+            f"Name range '{NR}' has {len(dest)} destinations (expected 1; value: {defn.attr_text!r}). This name range has been ignored in the migration."
+        )
+        return "", ""
+
+    sheet, range = dest[0]
+
+    # range could silently be wrong
+    if None in range_boundaries(range) and range:
+        c.issues.append(
+            f"Name range '{NR}' has an invalid range (rng: {range!r}), and has been ignored in the migration."
+        )
+        return "", ""
+
+    return sheet, range
+
+
+def get_NR_singlevalue(wb: Workbook, name: str, c: IssuesCollector) -> Any:
+    sheet, range = try_fetch_NR_refs(name, wb.defined_names, c)
+    if not sheet and not range:
+        return None
+
+    shape = make_shape(range)
+    if shape._left == shape._right and shape._top == shape._bottom:
+        return wb[sheet].cell(shape._top, shape._left).value
+    else:
+        raise Exception(
+            "Do not use get_NR_singlevalue for a range. Name range '{name}' is a range."
+        )
+
+
+def get_version(wb: Workbook, c: IssuesCollector) -> str:
+    version = get_NR_singlevalue(wb, VERSION_NR, c)
+    if version is None:
+        print("Program cannot continue without retrieving the version of the Template.")
+        sys.exit()
+    return version
+
+
+def check_status_incomplete(wb: Workbook, status: str, c: IssuesCollector) -> bool:
+    """
+    Check if the workbook is filled out or not based on the value of template_overall_validation_status.
+    Check is manual as openpyxl displays only the resulting label (in the selected language).
+    """
+    status_cell = get_NR_singlevalue(wb, status, c)
     if status_cell in [
-        "INCOMPLETE",
         "INCOMPLETE",
         "UFÆRDIG",
         "ONVOLLEDIG",
@@ -38,78 +149,59 @@ def create_table_of_contents(wb_values) -> Dict[str, int]:
     """Create a dict with keys as names of ToC sections and values as the corresponding row numbers in 'Table of Contents & Validation' sheet.
     If there is any change in where the ToC is located in the sheet, or changes in the range of cells utilised for it, this function should be updated."""
     _keys = [
-        cell[0].value for cell in wb_values["Table of Contents & Validation"]["B9:B70"]
+        cell[0].value for cell in wb_values["Table of Contents & Validation"]["B9:B65"]
     ]
-    _values = list(range(9, 71))  # row numbers
+    _values = list(range(9, 66))  # row numbers
     return dict(zip(_keys, _values))
 
 
 def access_NR_table(
-    pyxl_NR, old_sheet_names: list[str] | None = None
-) -> tuple[pd.DataFrame, list]:
+    pyxl_NR: DefinedNameDict,
+    c: IssuesCollector,
+    old_sheet_names: list[str] | None = None,
+) -> pd.DataFrame:
     """Access names, cell references and coordinates of each name range from the python object containing name ranges.
     Returns a (pandas) DataFrame.
     There were some VSME samples that, after processing in openpyxl, returned wrong sheet references for their name ranges (e.g. "[1]General Information" instead of "General Information");
     To handle this, a list of issues (str explaining where the issue is) is returned alongside the DataFrame."""
 
     rows: list[tuple[str, str | None, str | None, Shape]] = []
-    issues: list[str] = []
 
-    for NR, dn in pyxl_NR.items():
-        try:
-            destinations = list(dn.destinations)
-        except AttributeError:
-            issues.append(
-                f"Name range '{NR}' has an unreadable destination (value: {dn.attr_text!r}). This name range has been ignored in the migration."
-            )
-            rows.append((NR, None, None, make_shape(None)))
-            continue
+    for nr in pyxl_NR.keys():
+        sheet, rng = try_fetch_NR_refs(nr, pyxl_NR, c)
 
-        if len(destinations) != 1:
-            issues.append(
-                f"Name range '{NR}' has {len(destinations)} destinations (expected 1; value: {dn.attr_text!r}). This name range has been ignored in the migration."
-            )
-            rows.append((NR, None, None, make_shape(None)))
-            continue
-
-        sheet, rng = destinations[0]
         if old_sheet_names is not None and sheet not in old_sheet_names:
-            issues.append(
-                f"Name range '{NR}' refers to sheet '{sheet}' which is not present in the old workbook. This name range has been ignored in the migration."
+            c.issues.append(
+                f"Name range '{nr}' refers to sheet '{sheet}' which is not present in the old workbook. This name range has been ignored in the migration."
             )
             sheet = None
 
         # `rng or None` keeps the cell_ranges column NA-detectable (empty -> None);
         # make_shape independently treats an empty range as a NullShape.
-        rows.append((NR, sheet, rng or None, make_shape(rng)))
+        rows.append((nr, sheet, rng or None, make_shape(rng)))
 
     df_populated = pd.DataFrame(
         rows, columns=["name_ranges", "sheets", "cell_ranges", "cell_shapes"]
     )
-    return df_populated, issues
+    return df_populated
 
 
-def access_missingNR_table(df_missingNR, version_cell):
-    """Access sheets, cell references and coordinates of each missing name range.
-    the func argument df_missingNR is an hard-coded DataFrame created because certain name ranges were not present in old VSME versions.
-    The DataFrame (missingNR_df.pkl) is saved in src/migration_tool/data, and must be updated for every new VSME version,
-    with a new column for each version (and its corresponding references for every missing name range)."""
+def access_missingNR_table(missingNR: VersionCollection, version: str) -> pd.DataFrame:
+    """
+    Access sheets, cell references and coordinates of each missing name range.
+    The json data contained in missingNR is hard-coded because certain name ranges were not present in old VSME versions.
+    The json is saved in src/migration_tool/data, and must be updated for every new VSME version
+    (see validations.py for data structure)
+    """
 
-    list_of_sheets = []
-    list_of_ranges = []
-
-    for i in range(len(df_missingNR)):
-        list_of_sheets.append(df_missingNR.loc[:, version_cell].values[i].split("!")[0])
-        list_of_ranges.append(df_missingNR.loc[:, version_cell].values[i].split("!")[1])
-
-    for rang in list_of_ranges:
-        if rang == "None":
-            list_of_ranges[list_of_ranges.index(rang)] = None
-
+    list_of_labels = missingNR.get_labels(version)
+    list_of_sheets = missingNR.get_sheets(version)
+    list_of_ranges = missingNR.get_ranges(version)
     list_of_shapes = [make_shape(rng) for rng in list_of_ranges]
 
     return pd.DataFrame(
         {
+            "labels": list_of_labels,
             "sheets": list_of_sheets,
             "cell_ranges": list_of_ranges,
             "cell_shapes": list_of_shapes,
@@ -117,49 +209,20 @@ def access_missingNR_table(df_missingNR, version_cell):
     )
 
 
-def apply_changes_NR(df, version_cell, version_cell_new):
+def apply_changes_NR(
+    df: pd.DataFrame,
+    version_cell: str,
+    version_cell_new: str,
+    NR_changes: dict[str, str],
+) -> pd.DataFrame:
     """Change name ranges based on the version of the old workbook, and return a df with the updated name ranges.
     This is necessary because some name ranges have changed from version to version.
-    This dictionary could be transformed into a pd DataFrame and saved it as a pickle like missingNR_df if
-    many name changes will occur in the future, but for now it is hard-coded here."""
-
-    dict_of_changes_NR = {
-        "1.0.0": [
-            "NumberOfPermanentContactEmployees",
-            "DescriptionOfTheEffectiveParticipationOfWorkersUsersOrOtherinterestedPartiesOrCommunitiesInGovernance",
-            "MostSeniorLevelAccountableForImplementationOfPracticesPoliciesAndOrFutureInitiatives",
-        ],
-        "1.0.1": [
-            "NumberOfPermanentContactEmployees",
-            "DescriptionOfTheEffectiveParticipationOfWorkersUsersOrOtherinterestedPartiesOrCommunitiesInGovernance",
-            "MostSeniorLevelAccountableForImplementationOfPracticesPoliciesAndOrFutureInitiatives",
-        ],
-        "1.1.0": [
-            "NumberOfPermanentContractEmployees",
-            "DescriptionOfTheEffectiveParticipationOfWorkersUsersOrOtherInterestedPartiesOrCommunitiesInGovernance",
-            "MostSeniorLevelAccountableForImplementationOfPolicies",
-        ],
-        "1.1.1": [
-            "NumberOfPermanentContractEmployees",
-            "DescriptionOfTheEffectiveParticipationOfWorkersUsersOrOtherInterestedPartiesOrCommunitiesInGovernance",
-            "MostSeniorLevelAccountableForImplementationOfPolicies",
-        ],
-        "1.2.0": [
-            "NumberOfPermanentContractEmployees",
-            "DescriptionOfTheEffectiveParticipationOfWorkersUsersOrOtherInterestedPartiesOrCommunitiesInGovernance",
-            "MostSeniorLevelAccountableForImplementationOfPolicies",
-        ],
-        "1.3.0": [
-            "NumberOfPermanentContractEmployees",
-            "DescriptionOfTheEffectiveParticipationOfWorkersUsersOrOtherInterestedPartiesOrCommunitiesInGovernance",
-            "MostSeniorLevelAccountableForImplementationOfPolicies",
-        ],
-    }
+    Data comes from NR_changes.json, to be updated each time a NR name changes."""
 
     df_of_changes_NR = pd.DataFrame(
         {
-            "name_ranges": dict_of_changes_NR[version_cell],
-            "name_ranges_new": dict_of_changes_NR[version_cell_new],
+            "name_ranges": NR_changes[version_cell],
+            "name_ranges_new": NR_changes[version_cell_new],
         }
     )
 
@@ -174,36 +237,78 @@ def apply_changes_NR(df, version_cell, version_cell_new):
     return df
 
 
-def change_wastes(df, mapping) -> list[str]:
+def change_wastes(df: pd.DataFrame, mapping, c: IssuesCollector):
     """Change waste categories based on mapping_wastes.pkl provided in src/migration_tool/data/mapping.
     Mapping is based on the changes in waste categories in the new EU Regulation (see more in wastes.xlsx in base dir).
-    Returns a list of issues encountered during the change (e.g. old waste category not present in the new Regulation)."""
+    Issues appended are old waste categories not present in the new Regulation)."""
 
-    old_wastes = (
-        df.loc[df["name_ranges"] == "TypeOfWasteAxis", "cell_values"]
-        .values[0]
-        .first_element_row(double_list=False)
+    WASTECATEGORIES_NR = "TypeOfWasteAxis"
+
+    waste_block = cast(
+        Value, get_DFcell(df, "cell_values", ("name_ranges", WASTECATEGORIES_NR))
     )
-    new_wastes = []
-    list_wasteissues: list[str] = []
+    old_wastes = waste_block.first_element_row(double_list=False)
+
+    new_wastes: list[list[str]] = []
+    print_return = "not present in new Regulation. Please, see https://eur-lex.europa.eu/legal-content/EN/TXT/PDF/?uri=CELEX:32014D0955"
     for i in old_wastes:
-        if i is not None:
-            if pd.isna(mapping.loc[mapping["old"] == i, "new"].values[0]):
-                new_wastes.append(
-                    [
-                        f"Waste category {i} not present in new Regulation. Please, see https://eur-lex.europa.eu/legal-content/EN/TXT/PDF/?uri=CELEX:32014D0955"
-                    ]
-                )
-                list_wasteissues.append(
-                    f"Waste category --{i}-- not present in new Regulation. Please, see https://eur-lex.europa.eu/legal-content/EN/TXT/PDF/?uri=CELEX:32014D0955"
-                )
+        if isinstance(i, str):
+            if pd.isna(new_cat := get_DFcell(mapping, "new", ("old", i))):
+                new_wastes.append([f"Waste category '{i.strip()}' {print_return}"])
+                c.issues.append(f"Waste category '{i.strip()}' {print_return}")
             else:
-                new_wastes.append([mapping.loc[mapping["old"] == i, "new"].values[0]])
-    df.loc[df["name_ranges"] == "TypeOfWasteAxis", "cell_values"] = make_value(
-        new_wastes
+                new_wastes.append([new_cat])
+
+    set_DFcell(
+        df, "cell_values", make_value(new_wastes), ("name_ranges", WASTECATEGORIES_NR)
     )
 
-    return list_wasteissues
+
+def adjust_wasteValues(
+    old_df: pd.DataFrame, new_df: pd.DataFrame, new_wb: Workbook, c: IssuesCollector
+) -> pd.DataFrame:
+    REUSE_RECYCLE_NR = "WasteDivertedToRecycleOrReuseMass"
+    DIVERTED_NR = "WasteDirectedToDisposalMass"
+    TOTMASS_NR = "WasteGeneratedMass"
+
+    # getting shape of new name range
+    sheet, rng = try_fetch_NR_refs(TOTMASS_NR, new_wb.defined_names, c)
+    shape = make_shape(rng)
+
+    # calculation from previous mass of reused/recycled and diverted waste
+    reuse_recycle = cast(
+        Value, get_DFcell(old_df, "cell_values", ("name_ranges", REUSE_RECYCLE_NR))
+    )
+    diverted = cast(
+        Value, get_DFcell(old_df, "cell_values", ("name_ranges", DIVERTED_NR))
+    )
+    tot_waste = reuse_recycle.sum_two_int_ranges(diverted)
+
+    # add helper comments to each populated cell in the range
+    comment = "Old 'Waste diverted to recycle or reuse' cell value: "
+    block = reuse_recycle.values()
+    for row in range(shape.top(), shape.top() + len(block)):
+        if block and (reuse_recycle_sum := block[row - shape.top()][0]) is not None:
+            cell = new_wb[sheet].cell(row=row, column=shape.left())
+            cell.comment = Comment(f"{comment}{reuse_recycle_sum}", "Migration tool")
+
+    # adding new row with calculated values to dataframe
+    new_df_row = {
+        "name_ranges": TOTMASS_NR,
+        "sheets": sheet,
+        "cell_ranges": rng,
+        "cell_shapes": shape,
+        "cell_values": tot_waste,
+    }
+    new_df.loc[len(new_df)] = new_df_row
+    return new_df
+
+
+def convert_months(df: pd.DataFrame, version: str, dateLabels: tuple) -> None:
+    if version == "1.0.0":
+        mask = df["labels"].isin(dateLabels)
+        for _, row in df[mask].iterrows():
+            row["cell_values"].convert_month_to_numbers()
 
 
 def clean_NR_with_no_data(df):
@@ -243,38 +348,41 @@ def get_indexes_of_NAs(df, column) -> list[int]:
     return df.loc[df[column].isna()].index.tolist()
 
 
-def copy_values(pyxl, df, key=None) -> pd.DataFrame | pd.Series:
-    """Copy values from openpyxl workbook based on cell shapes, returns DataFrame with col of cell values.
-    2 cases: 1) if key is provided, a DataFrame with 2 cols (name ranges and values) is returned;
-             2) if key is not provided, just the cell values are returned as a pandas Series."""
+def copy_values(pyxl: Workbook, df: pd.DataFrame, *, NRflag: bool) -> pd.DataFrame:
+    """
+    Copy values from openpyxl workbook based on cell shapes, returns DataFrame with col of cell values.
+    If NRflag is True, DataFrame is returned with the name range col;
+    if False, with the labels col (see missing_NR.json).
+    """
 
     cell_values = []
+    # Python None always becomes NaN after pd.DataFrame creation
     index_sheets = get_indexes_of_NAs(df, "sheets")
     index_ranges = get_indexes_of_NAs(df, "cell_ranges")
 
     for i in range(len(df)):
         if i not in index_sheets:
             sheet = pyxl[df["sheets"][i]]
-            shape = df["cell_shapes"][i]
+            shape = cast(Shape, df["cell_shapes"][i])
 
             # handling the #REF ranges
             if i not in index_ranges:
                 cell_values.append(make_value(shape.build_values(sheet)))
             else:
                 cell_values.append(make_value(None))
-        # to handle issue with sheet names (ex "[1]General Information") in old workbooks
+        # handling issue with sheet names (ex "[1]General Information") in old workbooks
         else:
             cell_values.append(make_value(None))
 
     df["cell_values"] = cell_values
 
-    if key is not None:
-        return df[[key, "cell_values"]]
+    if NRflag:
+        return df[["name_ranges", "cell_values"]]
     else:
-        return df["cell_values"]
+        return df[["labels", "cell_values"]]
 
 
-def paste_values(pyxl, df, NR=None, table_of_contents=None, version=None):
+def paste_values(pyxl: Workbook, df, version, NR=None, table_of_contents=None):
     """Paste values from a DataFrame column into an openpyxl workbook.
 
     Treatment for merged cells (merged only across columns in VSMEs):
@@ -298,31 +406,43 @@ def paste_values(pyxl, df, NR=None, table_of_contents=None, version=None):
             merged_list.append(range_boundaries(str(merged[i]))[:2])
         merged_loc = pd.concat([merged_loc, pd.DataFrame({sheet: merged_list})], axis=1)
 
-    add_checkbox = [
-        "SiteLocatedInABiodiversitySensitiveArea",
-        "SiteLocatedNearABiodiversitySensitiveArea",
+    SITE_IN_BIOAREA_NR = "SiteLocatedInABiodiversitySensitiveArea"
+    SITE_NEAR_BIOAREA_NR = "SiteLocatedNearABiodiversitySensitiveArea"
+
+    add_checkbox = (SITE_IN_BIOAREA_NR, SITE_NEAR_BIOAREA_NR)
+
+    # the following missingNR ranges have shrinked in VS, so they need specific handling just for v 1.2.0
+    # (v 1.2.0 introduced the checkboxes in the ToC but not their related name ranges)
+    PROBLEMATIC_TOC_REFERENCES = [
+        "B3_B4_ToC",
+        "B5_ToC",
+        "B8_B9_ToC",
+        "C8_C9_ToC",
     ]
 
     for i in range(len(df)):
         sheet = pyxl[df["sheets"][i]]
-        rng = sheet[df["cell_ranges"][i]]
-        shape = df["cell_shapes"][i]
-        value = df["cell_values"][i]
+        rng = df["cell_ranges"][i]
+        shape = cast(Shape, df["cell_shapes"][i])
+        value = cast(Value, df["cell_values"][i])
 
         # specific handling for list of classified information
         if table_of_contents is not None:
-            if (
-                df["name_ranges"][i]
-                == "ListOfOmittedDisclosuresDeemedToBeClassifiedOrSensitiveInformation"
-            ):
+            if df["name_ranges"][i] == OMITTEDDISCL_NR:
                 classified_info_handling(value, table_of_contents, pyxl, version)
                 continue
+        else:
+            if (
+                version == "1.2.0"
+                and (label := df["labels"][i]) in PROBLEMATIC_TOC_REFERENCES
+            ):
+                value = classified_info_handling_120(value, label)
 
-        if value.values() is None:  # nothing to paste (null value or a formula)
+        if value.values() is None or pd.isna(rng):  # nothing to paste
             continue
 
         if shape.isonecell():
-            rng.value = value.topleft()  # when it's one cell, paste topleft
+            sheet[rng] = value.topleft()  # when it's one cell, paste topleft
 
         else:
             tuple_to_check = (shape.left(), shape.top())
@@ -350,9 +470,9 @@ def classified_info_handling(value, table_of_contents, pyxl, version) -> None:
     For migrations from 1.2.0 to newer versions, the cells are hard-coded in missingNR_df.
     """
 
-    for input in value.values():
-        if input[0] is not None:
-            if version in ["1.0.0", "1.0.1", "1.1.0", "1.1.1"]:
+    if version in ["1.0.0", "1.0.1", "1.1.0", "1.1.1"]:
+        for input in value.values():
+            if input[0] is not None:
                 match = [
                     s for s in table_of_contents.keys() if input[0][0:2] in s
                 ]  # matches based on first 2 characters
@@ -365,31 +485,22 @@ def classified_info_handling(value, table_of_contents, pyxl, version) -> None:
                             cell(row=row, column=4).value = True
 
 
-def adjust_classified_info(
-    df: pd.DataFrame, df_values: pd.DataFrame | pd.Series, px_values: Workbook
-) -> None:
-    """Copy classified info values for version where data is already in cells with formulas.
-    Cannot do this in copy_values or build_values method because it needs to be done on value-only workbooks.
-    Needed to migrate classified information choices, which in newer templates are selected via the ToC."""
+def classified_info_handling_120(value: Value, label: str) -> Value:
+    """Remove based on changes in the 1.2.0 and 2.0.0 ToCs. See the Templates for more."""
+    match label:
+        case "B3_B4_ToC":
+            value.remove_row(3)  # 3 means the 4th item
+        case "B5_ToC":
+            value.remove_row(1)
+        case "B8_B9_ToC":
+            value.remove_row(4)
+        case "C8_C9_ToC":
+            value.remove_row(1)
 
-    sheet_generalinfo = px_values["General Information"]
-    shape_classifiedinfo = df.loc[
-        df["name_ranges"]
-        == "ListOfOmittedDisclosuresDeemedToBeClassifiedOrSensitiveInformation",
-        "cell_shapes",
-    ].item()
-    values_classifiedinfo = make_value(
-        shape_classifiedinfo.build_values(sheet_generalinfo)
-    )
-
-    df_values.loc[
-        df["name_ranges"]
-        == "ListOfOmittedDisclosuresDeemedToBeClassifiedOrSensitiveInformation",
-        "cell_values",
-    ] = values_classifiedinfo
+    return value
 
 
-def adjust_data_missing_first2versions(
+def adjust_countriesOfOperation(
     df_new_wv: pd.DataFrame, missingNR_df_new_wv: pd.DataFrame, old_wb: Workbook
 ) -> None:
 
@@ -397,20 +508,15 @@ def adjust_data_missing_first2versions(
         sheet: str = comb["sheet"]
         rng: str = comb["rng"]
         val = make_value([[bool]])
-        df.loc[(df["sheets"] == sheet) & (df["cell_ranges"] == rng), "cell_values"] = (
-            val
-        )
+        set_DFcell(df, "cell_values", val, ("sheets", sheet), ("cell_ranges", rng))
 
     # resolving whether undertaking operates in more than one country
-    length = (
-        df_new_wv.loc[
-            df_new_wv["name_ranges"] == "CountryOfEmploymentContractAxis",
-            "cell_values",
-        ]
-        .values[0]
-        .count_uniques()
-    )
-    if length > 2:
+    COUNTRIES_EMPLOYMENT_NR = "CountryOfEmploymentContractAxis"
+    length = get_DFcell(
+        df_new_wv, "cell_values", ("name_ranges", COUNTRIES_EMPLOYMENT_NR)
+    ).count_uniques()
+
+    if length > 2:  # > 2 because one value is None
         add_TrueOrFalse_to_df(
             missingNR_df_new_wv, {"sheet": "Social Disclosures", "rng": "$E$27"}, True
         )
@@ -431,7 +537,69 @@ def adjust_data_missing_first2versions(
         )
 
 
-def create_or_update_migration_status(pyxl) -> None:
+def add_helperComments_social(
+    old_wb_values: Workbook,
+    new_wb: Workbook,
+    missingNR_df: pd.DataFrame,
+    version: str,
+    c: IssuesCollector,
+) -> None:
+    """In VS (2.0.0), new cell data without name ranges have been added in Social Disclosures.
+    This function adds helper comments in the new workbook, taking relevant refs from the missing NR dataframe.
+    In the case of training hours, the average time per employee"""
+
+    # CELL: "Select whether the rate is per 100 or 500 full-time workers over a yearly time frame"
+    shape = cast(
+        Shape,
+        get_DFcell(
+            missingNR_df, "cell_shapes", ("labels", "WhetherRateIsPer50OrPer100")
+        ),
+    )
+    cell = new_wb["Social Disclosures"].cell(row=shape.top(), column=shape.left())
+    cell.comment = Comment("New field included with the VS release.", "Migration tool")
+
+    # CELL: "Is the undertaking is already required by EU law or other national regulations to report the percentage gap in pay between its female and male employees?"
+    shape = cast(
+        Shape,
+        get_DFcell(
+            missingNR_df, "cell_shapes", ("labels", "GenderPercentageGapRequiredByLaw")
+        ),
+    )
+    cell = new_wb["Social Disclosures"].cell(row=shape.top(), column=shape.left())
+    cell.comment = Comment(
+        "New field included with the VS release. Modify to TRUE if applicable.",
+        "Migration tool",
+    )
+
+    # TRAINING HOURS (old references will never change)
+    refs_averageTrainingHours = {
+        "1.0.0": "C71",
+        "1.0.1": "C71",
+        "1.1.0": "C72",
+        "1.1.1": "C162",
+        "1.2.0": "C162",
+        "1.3.0": "C162",
+    }
+    averageTrainingHours = old_wb_values["Social Disclosures"][
+        refs_averageTrainingHours[version]
+    ].value
+
+    shape = cast(
+        Shape,
+        get_DFcell(missingNR_df, "cell_shapes", ("labels", "TrainingHours")),
+    )
+    cell = new_wb["Social Disclosures"].cell(row=shape.top(), column=shape.left())
+    cell.comment = Comment(
+        f"Old 'Average number of annual training hours per employee' was {averageTrainingHours}",
+        "Migration tool",
+    )
+
+    c.issues.append(
+        "New required information in the 'Social Disclosures' sheet (see cell-level comments for more)."
+    )
+
+
+def create_or_update_migration_status(pyxl: Workbook) -> None:
     """Create or update the name range template_migration_status in the Introduction sheet, cell D1.
     The cell returns TRUE if the migration process has been completed, but will be processed as None in openpyxl (data_only=True) mode
     if the workbook has not been opened after migration.
@@ -448,22 +616,15 @@ def create_or_update_migration_status(pyxl) -> None:
         ws["D2"].value = "=AND(TRUE,OR(FALSE,TRUE))"
 
 
-def assess_energyConsumption_validation(df: pd.DataFrame) -> list[str] | None:
+def assess_energyConsumption_validation(df: pd.DataFrame, c: IssuesCollector):
     """Fuel Converter for first 3 versions does not sum from the third added fuel.
     This function checks whether a third fuel (in C12) has been added,
-    and returns an issue to be added to the migration issues list since
+    and appends an issue to issuesCollector list since
     the newest version should display a validation error next to the energy cons. cells."""
 
-    if (
-        df.loc[
-            (df["sheets"] == "Fuel Converter") & (df["cell_ranges"] == "$C$12"),
-            "cell_values",
-        ]
-        .tolist()[0]
-        .topleft()
-    ):
-        return [
+    filter1 = ("sheets", "Fuel Converter")
+    filter2 = ("cell_ranges", "$C$12")
+    if get_DFcell(df, "cell_values", filter1, filter2).topleft():
+        c.issues.append(
             "Issues in Energy Consumption sums. Please check the Environmental Disclosures and the Fuel Converter sheets."
-        ]
-    else:
-        return None
+        )
