@@ -13,7 +13,7 @@ from openpyxl.utils import (
     quote_sheetname,
     range_boundaries,
 )
-from openpyxl.workbook.defined_name import DefinedName
+from openpyxl.workbook.defined_name import DefinedName, DefinedNameDict
 from openpyxl.comments import Comment
 
 from .classes import Shape, Value, check_formula, make_shape, make_value
@@ -61,32 +61,55 @@ def set_DFcell(
     df.loc[mask, paste_col] = value
 
 
-def try_fetch_NR_refs(NR: str, dn, c: IssuesCollector) -> tuple:
+def try_fetch_NR_refs(
+    NR: str, definedNames: DefinedNameDict, c: IssuesCollector
+) -> tuple:
     try:
-        destination = list(dn.destinations)
+        defn: DefinedName = definedNames[NR]
+    except KeyError:
+        c.issues.append(
+            f"Name range '{NR}' is not valid and has been ignored in the migration."
+        )
+        return "", ""
+
+    try:
+        dest = list(defn.destinations)
     except AttributeError:
-        issue = f"Name range '{NR}' has an unreadable destination (value: {dn.attr_text!r}). This name range has been ignored in the migration."
-        c.issues.append(issue)
+        c.issues.append(
+            f"Name range '{NR}' has an unreadable destination (value: {defn.attr_text!r}). This name range has been ignored in the migration."
+        )
         return "", ""
 
-    if len(destination) != 1:
-        issue = f"Name range '{NR}' has {len(destination)} destinations (expected 1; value: {dn.attr_text!r}). This name range has been ignored in the migration."
-        c.issues.append(issue)
+    if len(dest) != 1:
+        c.issues.append(
+            f"Name range '{NR}' has {len(dest)} destinations (expected 1; value: {defn.attr_text!r}). This name range has been ignored in the migration."
+        )
         return "", ""
 
-    sheet, range = destination[0]
+    sheet, range = dest[0]
+
+    # range could silently be wrong
+    if None in range_boundaries(range) and range:
+        c.issues.append(
+            f"Name range '{NR}' has an invalid range (rng: {range!r}), and has been ignored in the migration."
+        )
+        return "", ""
 
     return sheet, range
 
 
 def get_NR_singlevalue(wb: Workbook, name: str, c: IssuesCollector) -> Any:
-    dn = wb.defined_names[name]
-    sheet, range = try_fetch_NR_refs(name, dn, c)
+    sheet, range = try_fetch_NR_refs(name, wb.defined_names, c)
     if not sheet and not range:
         return None
 
     shape = make_shape(range)
-    return wb[sheet].cell(shape._top, shape._left).value
+    if shape._left == shape._right and shape._top == shape._bottom:
+        return wb[sheet].cell(shape._top, shape._left).value
+    else:
+        raise Exception(
+            "Do not use get_NR_singlevalue for a range. Name range '{name}' is a range."
+        )
 
 
 def get_version(wb: Workbook, c: IssuesCollector) -> str:
@@ -133,7 +156,7 @@ def create_table_of_contents(wb_values) -> Dict[str, int]:
 
 
 def access_NR_table(
-    pyxl_NR,
+    pyxl_NR: DefinedNameDict,
     c: IssuesCollector,
     old_sheet_names: list[str] | None = None,
 ) -> pd.DataFrame:
@@ -144,18 +167,18 @@ def access_NR_table(
 
     rows: list[tuple[str, str | None, str | None, Shape]] = []
 
-    for NR, dn in pyxl_NR.items():
-        sheet, rng = try_fetch_NR_refs(NR, dn, c)
+    for nr in pyxl_NR.keys():
+        sheet, rng = try_fetch_NR_refs(nr, pyxl_NR, c)
 
         if old_sheet_names is not None and sheet not in old_sheet_names:
             c.issues.append(
-                f"Name range '{NR}' refers to sheet '{sheet}' which is not present in the old workbook. This name range has been ignored in the migration."
+                f"Name range '{nr}' refers to sheet '{sheet}' which is not present in the old workbook. This name range has been ignored in the migration."
             )
             sheet = None
 
         # `rng or None` keeps the cell_ranges column NA-detectable (empty -> None);
         # make_shape independently treats an empty range as a NullShape.
-        rows.append((NR, sheet, rng or None, make_shape(rng)))
+        rows.append((nr, sheet, rng or None, make_shape(rng)))
 
     df_populated = pd.DataFrame(
         rows, columns=["name_ranges", "sheets", "cell_ranges", "cell_shapes"]
@@ -249,7 +272,7 @@ def adjust_wasteValues(
     TOTMASS_NR = "WasteGeneratedMass"
 
     # getting shape of new name range
-    sheet, rng = try_fetch_NR_refs(TOTMASS_NR, new_wb.defined_names[TOTMASS_NR], c)
+    sheet, rng = try_fetch_NR_refs(TOTMASS_NR, new_wb.defined_names, c)
     shape = make_shape(rng)
 
     # calculation from previous mass of reused/recycled and diverted waste
