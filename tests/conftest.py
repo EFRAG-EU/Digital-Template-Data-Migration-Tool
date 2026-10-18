@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import sys
+from functools import cache
 from pathlib import Path
 from typing import NamedTuple
 
@@ -15,9 +16,9 @@ SRC_DIR = REPO_ROOT / "src"
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
-from openpyxl import Workbook  # noqa: E402
+from openpyxl import Workbook
 
-from migration_tool.tool import migrate_workbook  # noqa: E402
+from migration_tool.tool import migrate_workbook
 
 SAMPLES_DIR = REPO_ROOT / "tests" / "templates_samples"
 RESULTS_DIR = REPO_ROOT / "tests" / "results"
@@ -35,29 +36,60 @@ XFAIL_SAMPLES: dict[str, str] = {
 # Baseline of known migration issues per sample.
 # If a sample is not listed here it is expected to produce zero issues.
 # ---------------------------------------------------------------------------
+STATEMENT_OF_COMPLIANCE_ISSUE = "New Template requires explicit statement of compliance (see 'General Information' for more)."
+SOCIAL_CHANGES_FLAG = "New required information in the 'Social Disclosures' sheet (see cell-level comments for more)."
+
 EXPECTED_ISSUES: dict[str, list[str]] = {
     "VSME-Digital-Template-Sample-1.0.0.xlsx": [
-        "Waste category --        101102 Non-Hazardous Waste - Waste glass-- not present in new Regulation. Please, see https://eur-lex.europa.eu/legal-content/EN/TXT/PDF/?uri=CELEX:32014D0955",
-        "Waste category --        040201 Non-Hazardous Waste - Waste from unprocessed textile fibres and other natural fibrous substances mainly of vegetable origin-- not present in new Regulation. Please, see https://eur-lex.europa.eu/legal-content/EN/TXT/PDF/?uri=CELEX:32014D0955",
+        STATEMENT_OF_COMPLIANCE_ISSUE,
+        SOCIAL_CHANGES_FLAG,
+        "Waste category '101102 Non-Hazardous Waste - Waste glass' not present in new Regulation. Please, see https://eur-lex.europa.eu/legal-content/EN/TXT/PDF/?uri=CELEX:32014D0955",
+        "Waste category '040201 Non-Hazardous Waste - Waste from unprocessed textile fibres and other natural fibrous substances mainly of vegetable origin' not present in new Regulation. Please, see https://eur-lex.europa.eu/legal-content/EN/TXT/PDF/?uri=CELEX:32014D0955",
         "Issues in Energy Consumption sums. Please check the Environmental Disclosures and the Fuel Converter sheets.",
     ],
     "VSME-Digital-Template-Sample-1.0.0_withoutdate.xlsx": [
+        STATEMENT_OF_COMPLIANCE_ISSUE,
+        SOCIAL_CHANGES_FLAG,
         "Issues in Energy Consumption sums. Please check the Environmental Disclosures and the Fuel Converter sheets.",
     ],
     "VSME-Digital-Template-Sample-1.0.1.xlsx": [
-        "Waste category --        101102 Non-Hazardous Waste - Waste glass-- not present in new Regulation. Please, see https://eur-lex.europa.eu/legal-content/EN/TXT/PDF/?uri=CELEX:32014D0955",
-        "Waste category --        040201 Non-Hazardous Waste - Waste from unprocessed textile fibres and other natural fibrous substances mainly of vegetable origin-- not present in new Regulation. Please, see https://eur-lex.europa.eu/legal-content/EN/TXT/PDF/?uri=CELEX:32014D0955",
+        STATEMENT_OF_COMPLIANCE_ISSUE,
+        SOCIAL_CHANGES_FLAG,
+        "Waste category '101102 Non-Hazardous Waste - Waste glass' not present in new Regulation. Please, see https://eur-lex.europa.eu/legal-content/EN/TXT/PDF/?uri=CELEX:32014D0955",
+        "Waste category '040201 Non-Hazardous Waste - Waste from unprocessed textile fibres and other natural fibrous substances mainly of vegetable origin' not present in new Regulation. Please, see https://eur-lex.europa.eu/legal-content/EN/TXT/PDF/?uri=CELEX:32014D0955",
     ],
     "VSME-Digital-Template-Sample-1.0.1_notcomplete.xlsx": [
         "The old workbook is incomplete. Migration happened only for the filled-out cells, but some data might be missing.",
-        "Waste category --        101102 Non-Hazardous Waste - Waste glass-- not present in new Regulation. Please, see https://eur-lex.europa.eu/legal-content/EN/TXT/PDF/?uri=CELEX:32014D0955",
-        "Waste category --        040201 Non-Hazardous Waste - Waste from unprocessed textile fibres and other natural fibrous substances mainly of vegetable origin-- not present in new Regulation. Please, see https://eur-lex.europa.eu/legal-content/EN/TXT/PDF/?uri=CELEX:32014D0955",
+        STATEMENT_OF_COMPLIANCE_ISSUE,
+        SOCIAL_CHANGES_FLAG,
     ],
     "VSME-Digital-Template-Sample-1.1.0.xlsx": [
         "Name range 'MostSeniorLevelAccountableForImplementationOfPracticesPoliciesAndOrFutureInitiatives' refers to sheet '[1]General Information' which is not present in the old workbook. This name range has been ignored in the migration.",
+        STATEMENT_OF_COMPLIANCE_ISSUE,
+        SOCIAL_CHANGES_FLAG,
     ],
     "VSME-Digital-Template-Sample-1.1.1.xlsx": [
         "The old workbook is incomplete. Migration happened only for the filled-out cells, but some data might be missing.",
+        STATEMENT_OF_COMPLIANCE_ISSUE,
+        SOCIAL_CHANGES_FLAG,
+    ],
+    "VSME-Digital-Template-Sample-1.1.1_classifiedinfo.xlsx": [
+        STATEMENT_OF_COMPLIANCE_ISSUE,
+        SOCIAL_CHANGES_FLAG,
+    ],
+    "VSME-Digital-Template-Sample-1.2.0.xlsx": [
+        "Name range 'DescriptionOfATargetRelatedToAPolicy' has 0 destinations (expected 1; value: '\"(=\\'General Information\\'!$E$520;=\\'General Information\\'!$E$530)\"'). This name range has been ignored in the migration.",
+        "Name range 'DescriptionOfATargetRelatedToAPolicy' refers to sheet '' which is not present in the old workbook. This name range has been ignored in the migration.",
+        STATEMENT_OF_COMPLIANCE_ISSUE,
+        SOCIAL_CHANGES_FLAG,
+    ],
+    "VSME-Digital-Template-Sample-1.2.0_otherlanguage.xlsx": [
+        STATEMENT_OF_COMPLIANCE_ISSUE,
+        SOCIAL_CHANGES_FLAG,
+    ],
+    "VSME-Digital-Template-Sample-1.3.0.xlsx": [
+        STATEMENT_OF_COMPLIANCE_ISSUE,
+        SOCIAL_CHANGES_FLAG,
     ],
 }
 
@@ -90,32 +122,28 @@ def _make_sample_param(path: Path):
 SAMPLE_PARAMS = [_make_sample_param(p) for p in SAMPLE_PATHS]
 
 
-@pytest.fixture(scope="session")
-def results_dir() -> Path:
-    """Provide (and lazily create) the directory for migration output files."""
-    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
-    return RESULTS_DIR
-
-
 @pytest.fixture(params=SAMPLE_PARAMS, scope="module")
 def sample_path(request) -> Path:
     """Parametrised fixture yielding each sample workbook path."""
     return request.param
 
 
-@pytest.fixture(scope="module")
-def migration_result(sample_path, results_dir) -> MigrationResult:
+@cache
+def migrated(sample_path: Path) -> MigrationResult:
     """Run the migration for a single sample and persist the output workbook.
 
-    Scoped to ``module`` so the (expensive) migration runs once per sample
-    per test file rather than once per test method.
+    Cached for the whole test process, so the (expensive) migration runs once
+    per sample however many test files want it. Under ``--dist loadgroup`` every
+    test for a sample runs on the same worker (see ``_make_sample_param``), so
+    that is once per sample overall. Treat the result as read-only.
     """
     new_wb, elapsed, issues = migrate_workbook(sample_path)
+    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     # Suffix with the xdist worker id (if any) so parallel workers don't race
     # on the same output file.
     worker = os.environ.get("PYTEST_XDIST_WORKER", "")
     suffix = f"-{worker}" if worker else ""
-    output_path = results_dir / f"{sample_path.stem}-migrated{suffix}.xlsx"
+    output_path = RESULTS_DIR / f"{sample_path.stem}-migrated{suffix}.xlsx"
     new_wb.save(output_path)
     return MigrationResult(
         workbook=new_wb,
@@ -124,6 +152,12 @@ def migration_result(sample_path, results_dir) -> MigrationResult:
         output_path=output_path,
         sample_path=sample_path,
     )
+
+
+@pytest.fixture(scope="module")
+def migration_result(sample_path) -> MigrationResult:
+    """The (shared, read-only) migration of one sample; see :func:`migrated`."""
+    return migrated(sample_path)
 
 
 # ---------------------------------------------------------------------------

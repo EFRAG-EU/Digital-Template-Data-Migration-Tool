@@ -191,6 +191,11 @@ class TestValue:
         value.first_element_row()
         assert value.values() == [[1], [4]]
 
+    def test_remove_row(self):
+        value = Value([[1, 2], [3, 4], [5, 6]])
+        value.remove_row(1)
+        assert value.values() == [[1, 2], [5, 6]]
+
     def test_paste_single_column(self):
         wb = Workbook()
         ws = wb.active
@@ -205,6 +210,16 @@ class TestValue:
         value.paste(ws, Shape((1, 1, 2, 2)))
         assert ws.cell(row=1, column=1).value == 1
         assert ws.cell(row=2, column=2).value == 4
+
+    def test_paste_in_merged_cells(self):
+        wb = Workbook()
+        ws = wb.active
+        ws.merge_cells("A1:A2")
+        value = Value([["ciao"], ["come"], ["stai"]])
+        value.paste(ws, Shape((1, 1, 1, 3)))
+        assert ws.cell(row=1, column=1).value == "ciao"
+        assert ws.cell(row=2, column=1).value is None
+        assert ws.cell(row=3, column=1).value == "stai"
 
     def test_enlarged_range_correction_pads_rows(self):
         value = Value([[1], [2]])
@@ -253,3 +268,29 @@ class TestMakeValue:
 
     def test_none_makes_null_value(self):
         assert type(make_value(None)) is NullValue
+
+
+# --- sum_two_ranges --------------------------------------------------------
+
+
+def test_sum_two_ranges_sums_ints_and_floats():
+    a = make_value([[1.5], [2], [0.25]])
+    b = make_value([[2.5], [3], [1]])
+    assert a.sum_two_ranges(b).values() == [[4.0], [5], [1.25]]
+
+
+@pytest.mark.parametrize(
+    "left,right",
+    [
+        (None, 1),
+        (1, None),
+        ("x", 1),
+        (1, "x"),
+        (True, 1),  # a bool is not a quantity
+        (1, False),
+    ],
+)
+def test_sum_two_ranges_gives_none_unless_both_are_numbers(left, right):
+    assert make_value([[left]]).sum_two_ranges(make_value([[right]])).values() == [
+        [None]
+    ]
