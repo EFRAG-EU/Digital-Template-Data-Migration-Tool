@@ -5,6 +5,7 @@ import warnings
 from collections.abc import Generator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
+from functools import cache
 from importlib.resources import as_file, files
 from io import BytesIO
 from pathlib import Path
@@ -17,6 +18,7 @@ from openpyxl import load_workbook as openpyxl_load_workbook
 from .data.validations import VersionCollection
 from .decorators import cached_copy
 from .outils import (
+    MigrationError,
     access_missingNR_table,
     access_NR_table,
     add_helperComments_social,
@@ -31,6 +33,7 @@ from .outils import (
     copy_values,
     create_or_update_migration_status,
     create_table_of_contents,
+    get_NR_singlevalue,
     get_version,
     paste_values,
 )
@@ -38,6 +41,7 @@ from .outils import (
 FilePathOrBinaryBlob: TypeAlias = str | Path | io.BufferedIOBase
 NEW_TEMPLATE_NAME = "VS-Digital-Template-2.0.xlsx"
 STATUS_NR = "template_overall_validation_status"
+ENTRY_POINT_NR = "template_reporting_schemaRef"
 
 
 @dataclass
@@ -109,6 +113,33 @@ def _table_of_contents() -> dict[str, int]:
         _open_cached_values(path) as wb,
     ):
         return create_table_of_contents(wb)
+
+
+@dataclass(frozen=True)
+class MigrationTarget:
+    """The blank template that migrate_workbook() migrates into."""
+
+    target_template_version: str
+    target_entry_point: str
+
+
+@cache
+def migration_target() -> MigrationTarget:
+    """Which template (version and taxonomy entry point) a migration produces."""
+    c = IssuesCollector()
+    with (
+        as_file(files("migration_tool.data").joinpath(NEW_TEMPLATE_NAME)) as path,
+        _open_cached_values(path) as wb,
+    ):
+        entry_point = get_NR_singlevalue(wb, ENTRY_POINT_NR, c)
+        if not entry_point:
+            raise MigrationError(
+                f"The migration target template has no value for '{ENTRY_POINT_NR}'."
+            )
+        return MigrationTarget(
+            target_template_version=str(get_version(wb, c)).strip(),
+            target_entry_point=str(entry_point).strip(),
+        )
 
 
 def migrate_workbook_as_bytes(

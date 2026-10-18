@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import sys
 from typing import TYPE_CHECKING, Any, cast
 
 if TYPE_CHECKING:
@@ -24,6 +23,10 @@ VERSION_NR = "template_reporting_template_version"
 # The 2.0 name: paste_values() sees the new template's name ranges, after
 # apply_changes_NR() has renamed the old ListOfOmittedDisclosuresDeemedToBe...
 OMITTEDDISCL_NR = "ListOfOmittedDisclosures"
+
+
+class MigrationError(ValueError):
+    """The workbook cannot be migrated; the message is suitable for users."""
 
 
 def get_DFcell(df: pd.DataFrame, return_col: str, *colfilters_pairs: tuple[str, Any]):
@@ -116,9 +119,11 @@ def get_NR_singlevalue(wb: Workbook, name: str, c: IssuesCollector) -> Any:
 
 def get_version(wb: Workbook, c: IssuesCollector) -> str:
     version = get_NR_singlevalue(wb, VERSION_NR, c)
-    if version is None:
-        print("Program cannot continue without retrieving the version of the Template.")
-        sys.exit()
+    if version is None or not str(version).strip():
+        raise MigrationError(
+            f"Cannot determine the template version: named range '{VERSION_NR}' "
+            "is missing or its cell is empty."
+        )
     return version
 
 
