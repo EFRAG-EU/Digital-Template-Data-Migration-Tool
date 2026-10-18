@@ -10,7 +10,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from conftest import SAMPLES_DIR
+from conftest import SAMPLES_DIR, migrated
 from openpyxl import load_workbook
 from openpyxl.utils import range_boundaries
 
@@ -31,10 +31,11 @@ def _ticked_labels(workbook) -> list[str]:
     ]
 
 
+# Same xdist group as that sample's other tests, so they share one migration.
+@pytest.mark.xdist_group("VSME-Digital-Template-Sample-1.1.1_classifiedinfo.xlsx")
 def test_list_from_before_1_2_0_ticks_the_matching_checkboxes():
     sample = SAMPLES_DIR / "VSME-Digital-Template-Sample-1.1.1_classifiedinfo.xlsx"
-    new_wb, _, _ = migrate_workbook(sample)
-    labels = _ticked_labels(new_wb)
+    labels = _ticked_labels(migrated(sample).workbook)
     # the sample lists "B4 - Pollution..." and "B9 - Workforce - Health and safety"
     assert any("b4_pollution_of_air_water_and_soil" in lab for lab in labels), labels
     assert any("b9_workforce_health_and_safety" in lab for lab in labels), labels
