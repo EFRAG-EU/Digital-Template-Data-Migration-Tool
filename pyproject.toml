@@ -38,7 +38,7 @@ build-backend = "hatchling.build"
 [tool.pytest.ini_options]
 # Parallel by default, grouped by sample so each sample's expensive migration
 # runs on a single worker (see tests/conftest.py). Use `-n0` for serial debugging.
-addopts = "-n auto --dist loadgroup"
+addopts = "-n auto --dist loadgroup --durations=20"
 markers = [
     "slow: marks tests that run migration multiple times (deselect with '-m \"not slow\"')",
 ]
