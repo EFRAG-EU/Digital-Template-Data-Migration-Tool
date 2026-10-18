@@ -86,18 +86,20 @@ def _mapping_wastes() -> pd.DataFrame:
 
 @cached_copy
 def _missing_NR() -> dict[str, dict[str, str]]:
-    with open(
-        "src/migration_tool/data/missing_NR.json", "r", encoding="utf-8"
-    ) as json_file:
-        return json.load(json_file)
+    return json.loads(
+        files("migration_tool.data")
+        .joinpath("missing_NR.json")
+        .read_text(encoding="utf-8")
+    )
 
 
 @cached_copy
 def _NR_changes() -> dict:
-    with open(
-        "src/migration_tool/data/NR_changes.json", "r", encoding="utf-8"
-    ) as json_file:
-        return json.load(json_file)
+    return json.loads(
+        files("migration_tool.data")
+        .joinpath("NR_changes.json")
+        .read_text(encoding="utf-8")
+    )
 
 
 @cached_copy
