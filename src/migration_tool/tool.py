@@ -1,19 +1,20 @@
 import io
+import json
 import time
 import warnings
 from collections.abc import Generator
 from contextlib import contextmanager
+from dataclasses import dataclass, field
 from importlib.resources import as_file, files
 from io import BytesIO
 from pathlib import Path
 from typing import TypeAlias
-import json
-from dataclasses import dataclass, field
 
 import pandas as pd
 from openpyxl import Workbook
 from openpyxl import load_workbook as openpyxl_load_workbook
 
+from .data.validations import VersionCollection
 from .decorators import cached_copy
 from .outils import (
     access_missingNR_table,
@@ -33,7 +34,6 @@ from .outils import (
     get_version,
     paste_values,
 )
-from .data.validations import VersionCollection
 
 FilePathOrBinaryBlob: TypeAlias = str | Path | io.BufferedIOBase
 NEW_TEMPLATE_NAME = "VS-Digital-Template-2.0.xlsx"

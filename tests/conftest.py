@@ -15,9 +15,9 @@ SRC_DIR = REPO_ROOT / "src"
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
-from openpyxl import Workbook  # noqa: E402
+from openpyxl import Workbook
 
-from migration_tool.tool import migrate_workbook  # noqa: E402
+from migration_tool.tool import migrate_workbook
 
 SAMPLES_DIR = REPO_ROOT / "tests" / "templates_samples"
 RESULTS_DIR = REPO_ROOT / "tests" / "results"

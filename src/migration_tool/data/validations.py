@@ -27,7 +27,7 @@ class VersionCollection:
     versions: list[Version] = field(default_factory=list)
 
     def add_version(self, version: str, labels_refs: dict[str, str]) -> Version:
-        labels = [lab for lab in labels_refs.keys()]
+        labels = [lab for lab in labels_refs]
         sheets = [ref.split("!")[0] for ref in labels_refs.values()]
         ranges = [convertToNone(ref.split("!")[1]) for ref in labels_refs.values()]
         trios = []
@@ -55,7 +55,7 @@ class VersionCollection:
 
     def get_labels(self, version: str) -> list[str]:
         labelRefs = self.get_version(version)
-        return [label for label in labelRefs.keys()]
+        return list(labelRefs)
 
     def get_sheets(self, version: str) -> list[str]:
         labelRefs = self.get_version(version)

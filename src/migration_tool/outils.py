@@ -1,12 +1,14 @@
 from __future__ import annotations
-from typing import cast, Dict, Any, TYPE_CHECKING
+
 import sys
+from typing import TYPE_CHECKING, Any, cast
 
 if TYPE_CHECKING:
     from .tool import IssuesCollector
 
 import pandas as pd
 from openpyxl import Workbook
+from openpyxl.comments import Comment
 from openpyxl.styles import Alignment
 from openpyxl.utils import (
     absolute_coordinate,
@@ -14,11 +16,9 @@ from openpyxl.utils import (
     range_boundaries,
 )
 from openpyxl.workbook.defined_name import DefinedName, DefinedNameDict
-from openpyxl.comments import Comment
 
 from .classes import Shape, Value, check_formula, make_shape, make_value
 from .data.validations import VersionCollection
-
 
 VERSION_NR = "template_reporting_template_version"
 OMITTEDDISCL_NR = "ListOfOmittedDisclosuresDeemedToBeClassifiedOrSensitiveInformation"
@@ -107,8 +107,8 @@ def get_NR_singlevalue(wb: Workbook, name: str, c: IssuesCollector) -> Any:
     if shape._left == shape._right and shape._top == shape._bottom:
         return wb[sheet].cell(shape._top, shape._left).value
     else:
-        raise Exception(
-            "Do not use get_NR_singlevalue for a range. Name range '{name}' is a range."
+        raise ValueError(
+            f"Do not use get_NR_singlevalue for a range. Name range '{name}' is a range."
         )
 
 
@@ -126,7 +126,7 @@ def check_status_incomplete(wb: Workbook, status: str, c: IssuesCollector) -> bo
     Check is manual as openpyxl displays only the resulting label (in the selected language).
     """
     status_cell = get_NR_singlevalue(wb, status, c)
-    if status_cell in [
+    return status_cell in [
         "INCOMPLETE",
         "UFÆRDIG",
         "ONVOLLEDIG",
@@ -139,13 +139,10 @@ def check_status_incomplete(wb: Workbook, status: str, c: IssuesCollector) -> bo
         "INCOMPLETO",
         "NEPOPOLNO",
         "INCOMPLETO",
-    ]:
-        return True
-    else:
-        return False
+    ]
 
 
-def create_table_of_contents(wb_values) -> Dict[str, int]:
+def create_table_of_contents(wb_values) -> dict[str, int]:
     """Create a dict with keys as names of ToC sections and values as the corresponding row numbers in 'Table of Contents & Validation' sheet.
     If there is any change in where the ToC is located in the sheet, or changes in the range of cells utilised for it, this function should be updated."""
     _keys = [
@@ -167,7 +164,7 @@ def access_NR_table(
 
     rows: list[tuple[str, str | None, str | None, Shape]] = []
 
-    for nr in pyxl_NR.keys():
+    for nr in pyxl_NR:
         sheet, rng = try_fetch_NR_refs(nr, pyxl_NR, c)
 
         if old_sheet_names is not None and sheet not in old_sheet_names:
@@ -456,9 +453,8 @@ def paste_values(pyxl: Workbook, df, version, NR=None, table_of_contents=None):
 
             else:
                 value.enlarged_range_correction(shape)  # enlarged ranges check
-                if NR is not None:
-                    if df["name_ranges"][i] in add_checkbox:
-                        value.add_checkboxes()  # add checkboxes for the specific NRs (see above)
+                if NR is not None and df["name_ranges"][i] in add_checkbox:
+                    value.add_checkboxes()  # add checkboxes for the specific NRs (see above)
                 value.paste(sheet, shape)
 
 
@@ -474,7 +470,7 @@ def classified_info_handling(value, table_of_contents, pyxl, version) -> None:
         for input in value.values():
             if input[0] is not None:
                 match = [
-                    s for s in table_of_contents.keys() if input[0][0:2] in s
+                    s for s in table_of_contents if input[0][0:2] in s
                 ]  # matches based on first 2 characters
 
                 if match:

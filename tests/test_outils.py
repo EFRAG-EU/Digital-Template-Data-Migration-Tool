@@ -3,16 +3,16 @@
 from __future__ import annotations
 
 import pandas as pd
+import pytest
 from openpyxl import Workbook
 from openpyxl.utils import absolute_coordinate, quote_sheetname
 from openpyxl.workbook.defined_name import DefinedName
-import pytest
 
 from migration_tool.outils import (
     get_DFcell,
+    get_NR_singlevalue,
     set_DFcell,
     try_fetch_NR_refs,
-    get_NR_singlevalue,
 )
 from migration_tool.tool import IssuesCollector
 

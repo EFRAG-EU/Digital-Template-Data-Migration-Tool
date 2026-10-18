@@ -22,7 +22,7 @@ class TestMissingOrWrongPath:
 
     def test_directory_path_raises(self, tmp_path):
         """Passing a directory instead of a file should not silently succeed."""
-        with pytest.raises(Exception):
+        with pytest.raises(Exception):  # noqa: B017 - any failure is acceptable here
             migrate_workbook(tmp_path)
 
 
@@ -32,17 +32,17 @@ class TestInvalidFileContent:
     def test_non_xlsx_file_raises(self, tmp_path):
         bad_file = tmp_path / "not_a_workbook.txt"
         bad_file.write_text("hello world")
-        with pytest.raises(Exception):
+        with pytest.raises(Exception):  # noqa: B017 - any failure is acceptable here
             migrate_workbook(bad_file)
 
     def test_corrupted_xlsx_raises(self, tmp_path):
         bad_xlsx = tmp_path / "corrupted.xlsx"
         bad_xlsx.write_bytes(b"\x00\x01\x02\x03")
-        with pytest.raises(Exception):
+        with pytest.raises(Exception):  # noqa: B017 - any failure is acceptable here
             migrate_workbook(bad_xlsx)
 
     def test_empty_file_raises(self, tmp_path):
         empty = tmp_path / "empty.xlsx"
         empty.write_bytes(b"")
-        with pytest.raises(Exception):
+        with pytest.raises(Exception):  # noqa: B017 - any failure is acceptable here
             migrate_workbook(empty)

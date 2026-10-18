@@ -20,7 +20,6 @@ from __future__ import annotations
 import argparse
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List
 
 from .tool import migrate_workbook
 
@@ -30,7 +29,7 @@ class SampleResult:
     sample: Path
     output: Path | None
     elapsed: float | None
-    issues: List[str] | None
+    issues: list[str] | None
     error: str | None
 
 
@@ -54,17 +53,17 @@ def run_sample(sample_path: Path, output_dir: Path | None) -> SampleResult:
             issues=issues,
             error=None,
         )
-    except Exception as exc:  # keep it simple; report error and continue
+    except Exception as exc:  # noqa: BLE001 - report any failure for this sample and continue
         return SampleResult(
             sample=sample_path, output=None, elapsed=None, issues=None, error=str(exc)
         )
 
 
-def find_samples(samples_dir: Path, pattern: str) -> List[Path]:
+def find_samples(samples_dir: Path, pattern: str) -> list[Path]:
     return sorted(samples_dir.glob(pattern))
 
 
-def main(argv: List[str] | None = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     repo_root = resolve_repo_root()
 
     parser = argparse.ArgumentParser(
@@ -116,7 +115,7 @@ def main(argv: List[str] | None = None) -> int:
 
     print(f"Running migration on {len(samples)} sample(s) from {samples_dir}...")
 
-    results: List[SampleResult] = []
+    results: list[SampleResult] = []
     for sample in samples:
         print(f"- {sample.name} ...", end=" ")
         res = run_sample(sample, output_dir)
