@@ -279,7 +279,7 @@ def adjust_wasteValues(
     diverted = cast(
         Value, get_DFcell(old_df, "cell_values", ("name_ranges", DIVERTED_NR))
     )
-    tot_waste = reuse_recycle.sum_two_int_ranges(diverted)
+    tot_waste = reuse_recycle.sum_two_ranges(diverted)
 
     # add helper comments to each populated cell in the range
     comment = "Old 'Waste diverted to recycle or reuse' cell value: "

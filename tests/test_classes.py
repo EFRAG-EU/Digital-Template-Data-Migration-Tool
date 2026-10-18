@@ -268,3 +268,29 @@ class TestMakeValue:
 
     def test_none_makes_null_value(self):
         assert type(make_value(None)) is NullValue
+
+
+# --- sum_two_ranges --------------------------------------------------------
+
+
+def test_sum_two_ranges_sums_ints_and_floats():
+    a = make_value([[1.5], [2], [0.25]])
+    b = make_value([[2.5], [3], [1]])
+    assert a.sum_two_ranges(b).values() == [[4.0], [5], [1.25]]
+
+
+@pytest.mark.parametrize(
+    "left,right",
+    [
+        (None, 1),
+        (1, None),
+        ("x", 1),
+        (1, "x"),
+        (True, 1),  # a bool is not a quantity
+        (1, False),
+    ],
+)
+def test_sum_two_ranges_gives_none_unless_both_are_numbers(left, right):
+    assert make_value([[left]]).sum_two_ranges(make_value([[right]])).values() == [
+        [None]
+    ]
