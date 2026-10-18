@@ -21,7 +21,9 @@ from .classes import Shape, Value, check_formula, make_shape, make_value
 from .data.validations import VersionCollection
 
 VERSION_NR = "template_reporting_template_version"
-OMITTEDDISCL_NR = "ListOfOmittedDisclosuresDeemedToBeClassifiedOrSensitiveInformation"
+# The 2.0 name: paste_values() sees the new template's name ranges, after
+# apply_changes_NR() has renamed the old ListOfOmittedDisclosuresDeemedToBe...
+OMITTEDDISCL_NR = "ListOfOmittedDisclosures"
 
 
 def get_DFcell(df: pd.DataFrame, return_col: str, *colfilters_pairs: tuple[str, Any]):

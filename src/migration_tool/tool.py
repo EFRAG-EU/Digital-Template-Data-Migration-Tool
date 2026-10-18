@@ -164,8 +164,10 @@ def migrate_workbook(
     DATES = ("StartDate", "EndDate", "DateAdoptionTransitionPlan")
     convert_months(missingNR_old_values, version_cell, DATES)
 
-    # Read the old workbook's cached computed values once (read-only): the ToC status
-    # cell and, for 1.2.0+, the classified-info column (both are formula cells).
+    # Read the old workbook's cached computed values once (read-only): the ToC
+    # status cell is a formula. (Classified-information choices need no cached
+    # values: before 1.2.0 they are a plain list, and from 1.2.0 they are the ToC
+    # checkboxes themselves, carried over by the "*_ToC" name ranges.)
     with _open_cached_values(old_wb) as old_values:
         incomplete = check_status_incomplete(old_values, STATUS_NR, c)
         if version_cell in ["1.0.0", "1.0.1", "1.1.0", "1.1.1", "1.2.0", "1.3.0"]:
