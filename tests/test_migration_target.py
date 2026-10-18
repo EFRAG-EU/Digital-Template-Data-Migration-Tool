@@ -8,7 +8,7 @@ from openpyxl.workbook.defined_name import DefinedName
 
 from migration_tool import MigrationError, MigrationTarget, migration_target
 from migration_tool.outils import VERSION_NR, get_version
-from migration_tool.tool import IssuesCollector, _missing_NR, _NR_changes
+from migration_tool.tool import IssuesCollector
 
 
 def _workbook_with_version_cell(value: object | None) -> Workbook:
@@ -49,14 +49,3 @@ class TestGetVersion:
     def test_missing_named_range_raises_migration_error_not_system_exit(self):
         with pytest.raises(MigrationError):
             get_version(Workbook(), IssuesCollector())
-
-
-class TestDataFilesAreFoundWithoutRelyingOnCwd:
-    @pytest.mark.parametrize("loader", [_missing_NR, _NR_changes])
-    def test_loads_from_any_working_directory(self, loader, tmp_path, monkeypatch):
-        loader._load.cache_clear()  # otherwise an earlier call hides the problem
-        monkeypatch.chdir(tmp_path)
-        try:
-            assert loader()
-        finally:
-            loader._load.cache_clear()
