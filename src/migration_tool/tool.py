@@ -184,8 +184,8 @@ def migrate_workbook(
 
     old_wb_sheet_names = [sheet.title for sheet in old_wb_obj.worksheets]
 
-    df_old = access_NR_table(old_wb_obj.defined_names, c, old_wb_sheet_names)
-    df_new = access_NR_table(new_wb_empty.defined_names, c)
+    df_old = access_NR_table(old_wb_obj, c, old_wb_sheet_names)
+    df_new = access_NR_table(new_wb_empty, c)
 
     resolveAnchors(missingNR, version_cell_new, new_wb_empty)
     missingNR_df_old = access_missingNR_table(missingNR, version_cell)

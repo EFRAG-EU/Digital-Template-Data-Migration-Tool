@@ -163,19 +163,19 @@ def create_table_of_contents(wb_values) -> dict[str, int]:
 
 
 def access_NR_table(
-    pyxl_NR: DefinedNameDict,
+    wb: Workbook,
     c: IssuesCollector,
     old_sheet_names: list[str] | None = None,
 ) -> pd.DataFrame:
-    """Access names, cell references and coordinates of each name range from the python object containing name ranges.
+    """Access names, cell references and coordinates of each name range of the workbook.
     Returns a (pandas) DataFrame.
     There were some VSME samples that, after processing in openpyxl, returned wrong sheet references for their name ranges (e.g. "[1]General Information" instead of "General Information");
     To handle this, a list of issues (str explaining where the issue is) is returned alongside the DataFrame."""
 
     rows: list[tuple[str, str | None, str | None, Shape]] = []
 
-    for nr in pyxl_NR:
-        sheet, rng = try_fetch_NR_refs(nr, pyxl_NR, c)
+    for nr in wb.defined_names:
+        sheet, rng = try_fetch_NR_refs(nr, wb.defined_names, c)
 
         if old_sheet_names is not None and sheet not in old_sheet_names:
             c.issues.append(
