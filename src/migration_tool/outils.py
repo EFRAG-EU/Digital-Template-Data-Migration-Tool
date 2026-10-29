@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from typing import TYPE_CHECKING, Any, cast
 
 if TYPE_CHECKING:
@@ -15,6 +16,8 @@ from openpyxl.utils import (
     range_boundaries,
 )
 from openpyxl.workbook.defined_name import DefinedName, DefinedNameDict
+from openpyxl.worksheet.formula import ArrayFormula
+from openpyxl.worksheet.worksheet import Worksheet
 
 from .classes import Shape, Value, check_formula, make_shape, make_value
 from .data.validations import VersionCollection
@@ -159,20 +162,94 @@ def create_table_of_contents(wb_values) -> dict[str, int]:
     return dict(zip(_keys, _values))
 
 
+Cell = tuple[str, int, int]  # sheet, column, row
+
+
+def _isFormula(value: Any) -> bool:
+    return isinstance(value, ArrayFormula) or (
+        isinstance(value, str) and value.startswith("=")
+    )
+
+
+def markerNames(wb: Workbook) -> set[str]:
+    """Names that only mark out an area (e.g. a table): every cell is covered by
+    disjoint, more specific names, which hold the data. Names with identical
+    areas are aliases and count once, markers nested inside don't count;
+    formula cells, and merged cells whose top-left is covered or a formula,
+    need no name."""
+    areas: dict[str, frozenset[Cell]] = {}
+    for name, defn in wb.defined_names.items():
+        try:
+            destinations = list(defn.destinations)
+        except AttributeError:
+            continue
+        cells: set[Cell] = set()
+        for sheet, ref in destinations:
+            left, top, right, bottom = range_boundaries(ref)
+            if sheet not in wb.sheetnames or None in (left, top, right, bottom):
+                break
+            cells.update(
+                (sheet, col, row)
+                for col in range(cast(int, left), cast(int, right) + 1)
+                for row in range(cast(int, top), cast(int, bottom) + 1)
+            )
+        else:
+            if cells:
+                areas[name] = frozenset(cells)
+
+    topLefts: dict[Cell, Cell] = {
+        (ws.title, col, row): (ws.title, merged.min_col, merged.min_row)
+        for ws in wb.worksheets
+        for merged in ws.merged_cells.ranges
+        for col in range(merged.min_col, merged.max_col + 1)
+        for row in range(merged.min_row, merged.max_row + 1)
+    }
+
+    def needsNoName(cell: Cell, covered: set[Cell]) -> bool:
+        sheet, col, row = cell
+        return cell in covered or _isFormula(wb[sheet].cell(row, col).value)
+
+    markers: set[str] = set()
+    # smallest first, so a table nested in another is known to be a marker
+    # (and not one of the outer table's data names) by the time we get there
+    for name, area in sorted(areas.items(), key=lambda item: len(item[1])):
+        inner = {
+            a
+            for n, a in areas.items()
+            if n not in markers and len(a) < len(area) and a <= area
+        }
+        covered: set[Cell] = set()
+        for innerArea in inner:
+            if covered & innerArea:
+                break
+            covered |= innerArea
+        else:
+            if inner and all(
+                needsNoName(cell, covered)
+                or ((topLeft := topLefts.get(cell)) and needsNoName(topLeft, covered))
+                for cell in area
+            ):
+                markers.add(name)
+    return markers
+
+
 def access_NR_table(
-    pyxl_NR: DefinedNameDict,
+    wb: Workbook,
     c: IssuesCollector,
     old_sheet_names: list[str] | None = None,
 ) -> pd.DataFrame:
-    """Access names, cell references and coordinates of each name range from the python object containing name ranges.
+    """Access names, cell references and coordinates of each name range of the workbook.
     Returns a (pandas) DataFrame.
     There were some VSME samples that, after processing in openpyxl, returned wrong sheet references for their name ranges (e.g. "[1]General Information" instead of "General Information");
     To handle this, a list of issues (str explaining where the issue is) is returned alongside the DataFrame."""
 
     rows: list[tuple[str, str | None, str | None, Shape]] = []
+    markers = markerNames(wb)
 
-    for nr in pyxl_NR:
-        sheet, rng = try_fetch_NR_refs(nr, pyxl_NR, c)
+    for nr in wb.defined_names:
+        if nr in markers:
+            continue
+        sheet, rng = try_fetch_NR_refs(nr, wb.defined_names, c)
 
         if old_sheet_names is not None and sheet not in old_sheet_names:
             c.issues.append(
@@ -193,9 +270,9 @@ def access_NR_table(
 def access_missingNR_table(missingNR: VersionCollection, version: str) -> pd.DataFrame:
     """
     Access sheets, cell references and coordinates of each missing name range.
-    The json data contained in missingNR is hard-coded because certain name ranges were not present in old VSME versions.
-    The json is saved in src/migration_tool/data, and must be updated for every new VSME version
-    (see validations.py for data structure)
+    The json data contained in missingNR is listed by hand because certain name ranges were not present in old VSME versions.
+    The json is saved in src/migration_tool/data (see validations.py for data structure); the target version's
+    anchors must be resolved first (see resolveAnchors).
     """
 
     list_of_labels = missingNR.get_labels(version)
@@ -211,6 +288,50 @@ def access_missingNR_table(missingNR: VersionCollection, version: str) -> pd.Dat
             "cell_shapes": list_of_shapes,
         }
     )
+
+
+TEMPLATE_LABEL = re.compile(r"=\s*(template_label_\w+)\s*")
+
+
+def _labelRows(ws: Worksheet) -> dict[str, set[int]]:
+    """The rows of each `=template_label_…` cell (whole formula, not a mention)
+    and of each plain-text cell, for sheets that have no template labels."""
+    rows: dict[str, set[int]] = {}
+    for rowNumber, row in enumerate(ws.iter_rows(values_only=True), start=1):
+        for value in row:
+            text = value.text if isinstance(value, ArrayFormula) else value
+            if not isinstance(text, str):
+                continue
+            if match := TEMPLATE_LABEL.fullmatch(text):
+                rows.setdefault(match.group(1), set()).add(rowNumber)
+            elif not text.startswith("="):
+                rows.setdefault(text, set()).add(rowNumber)
+    return rows
+
+
+def resolveAnchors(missingNR: VersionCollection, version: str, wb: Workbook) -> None:
+    """Fill in the range of each of the version's anchored refs from wb, the
+    template the anchors describe."""
+    labelRows: dict[str, dict[str, set[int]]] = {}
+    for ref in missingNR.getRefs(version):
+        if not (anchor := ref.anchor):
+            continue
+        if ref.sheet not in labelRows:
+            labelRows[ref.sheet] = _labelRows(wb[ref.sheet])
+        rows = labelRows[ref.sheet].get(anchor.label, set())
+        if len(rows) != 1:
+            raise MigrationError(
+                f"The target template has {len(rows)} rows labelled '{anchor.label}' in '{ref.sheet}' (for '{ref.label}'); expected exactly one."
+            )
+        (labelRow,) = rows
+        top = labelRow + anchor.rowOffset
+        bottom = top + anchor.rows - 1
+        first, _, last = anchor.cols.partition(":")
+        last = last or first
+        if (first, top) == (last, bottom):
+            ref.range = absolute_coordinate(f"{first}{top}")
+        else:
+            ref.range = absolute_coordinate(f"{first}{top}:{last}{bottom}")
 
 
 def apply_changes_NR(
@@ -318,15 +439,15 @@ def convert_months(df: pd.DataFrame, version: str, dateLabels: tuple) -> None:
 def clean_NR_with_no_data(df):
     """Function to filter name ranges to process.
     Some (most starting with template_) were created for Digital Converter and not for storing data.
+    Markers (e.g. tables) never get here: access_NR_table skips them (see markerNames).
     Unfortunately, there were some exceptions and edge cases (see list_of_NRs_toNOTremove)."""
 
     list_of_keywords = [
         "template_",
         "enum_",
-        "Table",
-        "BreakdownOfEnergyConsumptionAxis",
-        "Hypercube",
     ]
+    # the energy table's row labels (template_label_ formulas), not data
+    list_of_NRs_toremove = ["BreakdownOfEnergyConsumptionAxis"]
 
     list_of_NRs_toNOTremove = [
         "template_reporting_entity_name",
@@ -343,6 +464,7 @@ def clean_NR_with_no_data(df):
 
     for kw in list_of_keywords:
         df = df[~df["name_ranges"].str.contains(kw, na=False)]
+    df = df[~df["name_ranges"].isin(list_of_NRs_toremove)]
 
     return pd.concat([df.reset_index(drop=True), df_toattach]).reset_index(drop=True)
 
@@ -507,11 +629,9 @@ def adjust_countriesOfOperation(
     df_new_wv: pd.DataFrame, missingNR_df_new_wv: pd.DataFrame, old_wb: Workbook
 ) -> None:
 
-    def add_TrueOrFalse_to_df(df, comb, bool) -> None:
-        sheet: str = comb["sheet"]
-        rng: str = comb["rng"]
+    def add_TrueOrFalse_to_df(df, label: str, bool) -> None:
         val = make_value([[bool]])
-        set_DFcell(df, "cell_values", val, ("sheets", sheet), ("cell_ranges", rng))
+        set_DFcell(df, "cell_values", val, ("labels", label))
 
     # resolving whether undertaking operates in more than one country
     COUNTRIES_EMPLOYMENT_NR = "CountryOfEmploymentContractAxis"
@@ -519,25 +639,16 @@ def adjust_countriesOfOperation(
         df_new_wv, "cell_values", ("name_ranges", COUNTRIES_EMPLOYMENT_NR)
     ).count_uniques()
 
-    if length > 2:  # > 2 because one value is None
-        add_TrueOrFalse_to_df(
-            missingNR_df_new_wv, {"sheet": "Social Disclosures", "rng": "$E$27"}, True
-        )
-    else:
-        add_TrueOrFalse_to_df(
-            missingNR_df_new_wv, {"sheet": "Social Disclosures", "rng": "$E$27"}, False
-        )
+    # > 2 because one value is None
+    add_TrueOrFalse_to_df(
+        missingNR_df_new_wv, "OperationInMoreThanOneCountry", length > 2
+    )
 
     # resolving Fuel Converter transfer cell
     first_fuel = old_wb["Fuel Converter"]["B10"].value
-    if first_fuel:
-        add_TrueOrFalse_to_df(
-            missingNR_df_new_wv, {"sheet": "Fuel Converter", "rng": "$D$23"}, True
-        )
-    else:
-        add_TrueOrFalse_to_df(
-            missingNR_df_new_wv, {"sheet": "Fuel Converter", "rng": "$D$23"}, False
-        )
+    add_TrueOrFalse_to_df(
+        missingNR_df_new_wv, "FuelTotCalculatedResult", bool(first_fuel)
+    )
 
 
 def add_helperComments_social(
@@ -625,9 +736,7 @@ def assess_energyConsumption_validation(df: pd.DataFrame, c: IssuesCollector):
     and appends an issue to issuesCollector list since
     the newest version should display a validation error next to the energy cons. cells."""
 
-    filter1 = ("sheets", "Fuel Converter")
-    filter2 = ("cell_ranges", "$C$12")
-    if get_DFcell(df, "cell_values", filter1, filter2).topleft():
+    if get_DFcell(df, "cell_values", ("labels", "FuelAmount3")).topleft():
         c.issues.append(
             "Issues in Energy Consumption sums. Please check the Environmental Disclosures and the Fuel Converter sheets."
         )

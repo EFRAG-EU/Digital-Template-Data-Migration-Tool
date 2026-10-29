@@ -8,9 +8,15 @@ from openpyxl import Workbook
 from openpyxl.utils import absolute_coordinate, quote_sheetname
 from openpyxl.workbook.defined_name import DefinedName
 
+from migration_tool.classes import make_value
 from migration_tool.outils import (
+    access_NR_table,
+    adjust_countriesOfOperation,
+    assess_energyConsumption_validation,
+    clean_NR_with_no_data,
     get_DFcell,
     get_NR_singlevalue,
+    markerNames,
     set_DFcell,
     try_fetch_NR_refs,
 )
@@ -136,6 +142,117 @@ class TestNameRanges:
         with pytest.raises(Exception) as exc_info:
             get_NR_singlevalue(wb, "multiCell", collector)
         assert "Do not use get_NR_singlevalue for a range" in str(exc_info.value)
+
+
+class TestMarkerNames:
+    """A name whose cells are all covered by disjoint, more specific names only
+    marks an area (e.g. a table); the data is in the names inside it."""
+
+    @pytest.fixture
+    def grid(self) -> Workbook:
+        """GridTable spans A1:C2 and A5:C5. Inside it: single-cell names, an
+        alias pair on A2, a merged B2:C2 named by its top-left, formulas in C1
+        and in the merged A5:C5, and RowTable, itself a marker of A1:B1."""
+        wb = Workbook()
+        ws = wb.active
+        ws["A1"], ws["B1"], ws["C1"] = 1, 2, "=A1+B1"
+        ws["A2"], ws["B2"] = 3, 4
+        ws.merge_cells("B2:C2")
+        ws["A5"] = "=SUM(A1:B2)"
+        ws.merge_cells("A5:C5")
+        for name, rng in [
+            ("First", "A1"),
+            ("Second", "B1"),
+            ("AliasOne", "A2"),
+            ("AliasTwo", "A2"),
+            ("Merged", "B2"),
+        ]:
+            _create_NR(wb, name, ("Sheet", rng))
+        _create_NR(wb, "GridTable", ("Sheet", "A1:C2"), ("Sheet", "A5:C5"))
+        _create_NR(wb, "RowTable", ("Sheet", "A1:B1"))
+        return wb
+
+    def test_covered_names_are_markers(self, grid):
+        assert {"GridTable", "RowTable"} <= markerNames(grid)
+
+    def test_names_without_inner_names_are_not_markers(self, grid):
+        _create_NR(grid, "PlainBlock", ("Sheet", "D1:D3"))
+        assert markerNames(grid).isdisjoint({"First", "AliasOne", "PlainBlock"})
+
+    def test_an_uncovered_input_cell_is_data(self, grid):
+        grid.active["C1"] = 7
+        assert "GridTable" not in markerNames(grid)
+
+    def test_overlapping_inner_names_are_not_a_cover(self, grid):
+        del grid.defined_names["First"], grid.defined_names["Second"]
+        _create_NR(grid, "Left", ("Sheet", "A1:B1"))
+        _create_NR(grid, "Right", ("Sheet", "B1:C1"))
+        assert "GridTable" not in markerNames(grid)
+
+    def test_markers_are_skipped_silently(self, grid, collector):
+        df = access_NR_table(grid, collector)
+        assert "GridTable" not in set(df["name_ranges"])
+        assert collector.issues == []
+
+    def test_other_multi_destination_names_are_still_reported(self, grid, collector):
+        _create_NR(grid, "BrokenPair", ("Sheet", "D1"), ("Sheet", "D3"))
+        access_NR_table(grid, collector)
+        assert any("'BrokenPair' has 2 destinations" in i for i in collector.issues)
+
+    def test_cleaning_keeps_data_names_whatever_they_are_called(self):
+        df = pd.DataFrame(
+            {
+                "name_ranges": [
+                    "IdentifierOfSiteTypedAxis_SitesInBiodiversitySensitiveAreasTable",
+                    "template_label_x",
+                    "enum_ListYear",
+                    "BreakdownOfEnergyConsumptionAxis",
+                ]
+            }
+        )
+        assert list(clean_NR_with_no_data(df)["name_ranges"]) == [
+            "IdentifierOfSiteTypedAxis_SitesInBiodiversitySensitiveAreasTable"
+        ]
+
+
+class TestTargetCellsByLabel:
+    """Target-template helper cells are looked up by label, not by address, so
+    they are found wherever a template release puts them."""
+
+    @pytest.fixture
+    def missing(self) -> pd.DataFrame:
+        return pd.DataFrame(
+            {
+                "labels": [
+                    "OperationInMoreThanOneCountry",
+                    "FuelTotCalculatedResult",
+                    "FuelAmount3",
+                ],
+                "sheets": ["Social Disclosures", "Fuel Converter", "Fuel Converter"],
+                "cell_ranges": ["$E$99", "$D$99", "$C$99"],
+                "cell_values": [None, None, make_value([[5]])],
+            }
+        )
+
+    def test_third_fuel_is_flagged(self, missing, collector):
+        assess_energyConsumption_validation(missing, collector)
+        assert any("Energy Consumption" in issue for issue in collector.issues)
+
+    def test_countries_and_fuel_transfer_are_set(self, missing):
+        countries = pd.DataFrame(
+            {
+                "name_ranges": ["CountryOfEmploymentContractAxis"],
+                "cell_values": [make_value([["FR"], ["DE"], [None]])],
+            }
+        )
+        old_wb = Workbook()
+        old_wb.create_sheet("Fuel Converter")["B10"] = "Diesel"
+
+        adjust_countriesOfOperation(countries, missing, old_wb)
+
+        for label in ("OperationInMoreThanOneCountry", "FuelTotCalculatedResult"):
+            value = get_DFcell(missing, "cell_values", ("labels", label))
+            assert value.topleft() is True, label
 
 
 ### to continue with other unit tests for functions in outils.py

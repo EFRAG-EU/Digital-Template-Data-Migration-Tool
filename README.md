@@ -6,11 +6,11 @@ It ensures that all data-filled Named Ranges (NRs) and data cells with missing N
 ## Working overview
 
 Everything starts from an old version filled with data and a new empty one, both imported as openpyxl objects. Thanks to data being organised with NRs in the VSME template, name ranges for both files are accessed through the `.definedNames` method. With NR attributes, sheet and range information for each NR are extracted and ranges are then transformed into shapes using the `.range_boundaries` method and stored into a specific Python class (see "classes.py"). With these info, pandas DataFrames are created, with cols of: "name_ranges", "sheets", "cell_ranges" and "cell_shapes". Values are subsequently copied from the old workbook and attached to the first DataFrame in the col "cell_values". With "name_ranges" col as key, values are joined from the first DataFrame (old wb) to the second (new wb). Lastly, the old values are pasted in the new empty workbook (openpyxl object) based on their new references, found in each row of the DataFrame.
-These mechanics are similarly repeated for additional DataFrames of the missing NRs (with, in that case, no name ranges references and joining performed as concatenation based on the hard-coded cell references).
+These mechanics are similarly repeated for additional DataFrames of the missing NRs (with, in that case, no name ranges references and joining performed by label). Their cell references are listed per version in `data/missing_NR.json`: fixed ranges for the old (frozen) versions, and for the target version anchors on the row's `=template_label_…` cell, resolved against the new template at migration time so they follow inserted rows.
 
 ## Checklist before new release
 
-- Update of the hard-coded tables (missingNR_df, dict_of_changes_NR), checking if cell references and NR denominations have changed;
+- Run `tests/test_missing_nr_target.py` against the new template and fix only the `missing_NR.json` anchors it reports (e.g. a renamed template label); check `NR_changes.json` for changed NR denominations;
 - Check if reference of the Table of Contents have changed (see funct: create_table_of_contents);
 - Check if new languages have been added (if so, add "INCOMPLETE" label in funct: check_status_incomplete);
 - Think about which new issues after a successful migration can arise with a newer version (ex change in the list of NACE codes with no matches for certain old categories), and, if so, add an error string manually to list_migrationissues (`list[str]`)\*\*\*

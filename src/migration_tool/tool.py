@@ -15,7 +15,7 @@ import pandas as pd
 from openpyxl import Workbook
 from openpyxl import load_workbook as openpyxl_load_workbook
 
-from .data.validations import VersionCollection
+from .data.validations import RefsJson, VersionCollection
 from .decorators import cached_copy
 from .outils import (
     MigrationError,
@@ -36,6 +36,7 @@ from .outils import (
     get_NR_singlevalue,
     get_version,
     paste_values,
+    resolveAnchors,
 )
 
 FilePathOrBinaryBlob: TypeAlias = str | Path | io.BufferedIOBase
@@ -89,7 +90,7 @@ def _mapping_wastes() -> pd.DataFrame:
 
 
 @cached_copy
-def _missing_NR() -> dict[str, dict[str, str]]:
+def _missing_NR() -> dict[str, dict[str, RefsJson]]:
     return json.loads(
         files("migration_tool.data")
         .joinpath("missing_NR.json")
@@ -183,9 +184,10 @@ def migrate_workbook(
 
     old_wb_sheet_names = [sheet.title for sheet in old_wb_obj.worksheets]
 
-    df_old = access_NR_table(old_wb_obj.defined_names, c, old_wb_sheet_names)
-    df_new = access_NR_table(new_wb_empty.defined_names, c)
+    df_old = access_NR_table(old_wb_obj, c, old_wb_sheet_names)
+    df_new = access_NR_table(new_wb_empty, c)
 
+    resolveAnchors(missingNR, version_cell_new, new_wb_empty)
     missingNR_df_old = access_missingNR_table(missingNR, version_cell)
     missingNR_df_new = access_missingNR_table(missingNR, version_cell_new)
 

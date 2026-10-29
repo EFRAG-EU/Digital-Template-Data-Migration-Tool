@@ -14,6 +14,8 @@ from conftest import SAMPLES_DIR, migrated
 from openpyxl import load_workbook
 from openpyxl.utils import range_boundaries
 
+from migration_tool.data.validations import VersionCollection
+from migration_tool.outils import resolveAnchors
 from migration_tool.tool import _missing_NR, migrate_workbook
 
 TOC = "Table of Contents & Validation"
@@ -42,11 +44,13 @@ def test_list_from_before_1_2_0_ticks_the_matching_checkboxes():
     assert len(labels) == 2, labels
 
 
-def _checkbox_rows_in_new_template() -> set[int]:
+def _checkbox_rows_in_new_template(new_wb) -> set[int]:
+    refs = VersionCollection.from_dict(_missing_NR())
+    resolveAnchors(refs, "2.0.0", new_wb)
     rows: set[int] = set()
-    for label, ref in _missing_NR()["2.0.0"].items():
-        if label.endswith("_ToC"):
-            _, top, _, bottom = range_boundaries(ref.split("!")[1].replace("$", ""))
+    for ref in refs.getRefs("2.0.0"):
+        if ref.label.endswith("_ToC") and ref.range:
+            _, top, _, bottom = range_boundaries(ref.range.replace("$", ""))
             rows.update(range(top, bottom + 1))
     return rows
 
@@ -77,7 +81,7 @@ def test_every_ticked_checkbox_in_1_2_0_and_later_arrives_ticked(
     new_ws = new_wb[TOC]
     not_ticked = sorted(
         row
-        for row in _checkbox_rows_in_new_template()
+        for row in _checkbox_rows_in_new_template(new_wb)
         if new_ws.cell(row, CHECKBOX_COLUMN).value is not True
     )
     assert not_ticked == []
