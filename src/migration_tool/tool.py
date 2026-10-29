@@ -36,6 +36,7 @@ from .outils import (
     get_NR_singlevalue,
     get_version,
     paste_values,
+    resolveAnchors,
 )
 
 FilePathOrBinaryBlob: TypeAlias = str | Path | io.BufferedIOBase
@@ -186,6 +187,7 @@ def migrate_workbook(
     df_old = access_NR_table(old_wb_obj.defined_names, c, old_wb_sheet_names)
     df_new = access_NR_table(new_wb_empty.defined_names, c)
 
+    resolveAnchors(missingNR, version_cell_new, new_wb_empty)
     missingNR_df_old = access_missingNR_table(missingNR, version_cell)
     missingNR_df_new = access_missingNR_table(missingNR, version_cell_new)
 

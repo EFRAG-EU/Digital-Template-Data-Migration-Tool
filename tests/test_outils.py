@@ -8,7 +8,10 @@ from openpyxl import Workbook
 from openpyxl.utils import absolute_coordinate, quote_sheetname
 from openpyxl.workbook.defined_name import DefinedName
 
+from migration_tool.classes import make_value
 from migration_tool.outils import (
+    adjust_countriesOfOperation,
+    assess_energyConsumption_validation,
     get_DFcell,
     get_NR_singlevalue,
     set_DFcell,
@@ -136,6 +139,46 @@ class TestNameRanges:
         with pytest.raises(Exception) as exc_info:
             get_NR_singlevalue(wb, "multiCell", collector)
         assert "Do not use get_NR_singlevalue for a range" in str(exc_info.value)
+
+
+class TestTargetCellsByLabel:
+    """Target-template helper cells are looked up by label, not by address, so
+    they are found wherever a template release puts them."""
+
+    @pytest.fixture
+    def missing(self) -> pd.DataFrame:
+        return pd.DataFrame(
+            {
+                "labels": [
+                    "OperationInMoreThanOneCountry",
+                    "FuelTotCalculatedResult",
+                    "FuelAmount3",
+                ],
+                "sheets": ["Social Disclosures", "Fuel Converter", "Fuel Converter"],
+                "cell_ranges": ["$E$99", "$D$99", "$C$99"],
+                "cell_values": [None, None, make_value([[5]])],
+            }
+        )
+
+    def test_third_fuel_is_flagged(self, missing, collector):
+        assess_energyConsumption_validation(missing, collector)
+        assert any("Energy Consumption" in issue for issue in collector.issues)
+
+    def test_countries_and_fuel_transfer_are_set(self, missing):
+        countries = pd.DataFrame(
+            {
+                "name_ranges": ["CountryOfEmploymentContractAxis"],
+                "cell_values": [make_value([["FR"], ["DE"], [None]])],
+            }
+        )
+        old_wb = Workbook()
+        old_wb.create_sheet("Fuel Converter")["B10"] = "Diesel"
+
+        adjust_countriesOfOperation(countries, missing, old_wb)
+
+        for label in ("OperationInMoreThanOneCountry", "FuelTotCalculatedResult"):
+            value = get_DFcell(missing, "cell_values", ("labels", label))
+            assert value.topleft() is True, label
 
 
 ### to continue with other unit tests for functions in outils.py
