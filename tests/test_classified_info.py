@@ -11,12 +11,11 @@ from pathlib import Path
 
 import pytest
 from conftest import SAMPLES_DIR, migrated
-from openpyxl import load_workbook
 from openpyxl.utils import range_boundaries
 
 from migration_tool.data.validations import VersionCollection
 from migration_tool.outils import resolveAnchors
-from migration_tool.tool import _missing_NR, migrate_workbook
+from migration_tool.tool import _missing_NR, load_workbook_quietly, migrate_workbook
 
 TOC = "Table of Contents & Validation"
 CHECKBOX_COLUMN = 4
@@ -62,7 +61,7 @@ def test_every_ticked_checkbox_in_1_2_0_and_later_arrives_ticked(
     """Tick every checkbox in the old Table of Contents and every checkbox the new
     one has must come out ticked: none of the choices are lost on the way."""
     sample = SAMPLES_DIR / f"VSME-Digital-Template-Sample-{version}.xlsx"
-    values = load_workbook(sample, data_only=True)[TOC]
+    values = load_workbook_quietly(sample, data_only=True)[TOC]
     old_checkbox_rows = [
         row
         for row in range(1, values.max_row + 1)
@@ -71,7 +70,7 @@ def test_every_ticked_checkbox_in_1_2_0_and_later_arrives_ticked(
     ]
     assert old_checkbox_rows, "sample has no checkboxes?"
 
-    ticked = load_workbook(sample)
+    ticked = load_workbook_quietly(sample)
     for row in old_checkbox_rows:
         ticked[TOC].cell(row, CHECKBOX_COLUMN).value = True
     ticked_path = tmp_path / "all-ticked.xlsx"
