@@ -1,6 +1,6 @@
 [project]
 name = "migration_tool"
-version = "0.1.5"
+dynamic = ["version"]
 description = "Migration tool package, used in EFRAG's Digital Converter"
 authors = [ 
     { name = "Andrea Baschiera", email = "andrea.baschiera@efrag.org" }, 
@@ -32,8 +32,14 @@ packages = ["src/migration_tool"]
 extend-exclude = ["*.ipynb"]
  
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
+
+# The version comes from git (e.g. 0.1.5.dev49+gdb0b857), so every commit is a
+# distinct version and moving a git pin always reinstalls.
+[tool.hatch.version]
+source = "vcs"
+fallback-version = "0+unknown"
 
 [tool.pytest.ini_options]
 # Parallel by default, grouped by sample so each sample's expensive migration
