@@ -469,6 +469,40 @@ def clean_NR_with_no_data(df):
     return pd.concat([df.reset_index(drop=True), df_toattach]).reset_index(drop=True)
 
 
+# Old waste name ranges: adjust_wasteValues() migrates their data, not their names
+WASTE_NR_PREFIXES = (
+    "WasteDirectedToDisposal",
+    "WasteDivertedToRecycleOrReuse",
+    "TotalWasteRecycledReusedAndDirectedToDisposal",
+)
+
+
+def report_unmigrated_NR(
+    df_old: pd.DataFrame,
+    df_old_tomerge: pd.DataFrame,
+    df_new: pd.DataFrame,
+    version_new: str,
+    c: IssuesCollector,
+) -> None:
+    """Report old name ranges that hold data but have no name range in the new template.
+    Merging with the new template's name ranges drops them, so without this they vanish silently.
+    Units (each goes with a reported value), template_ names and waste names are not reported."""
+
+    unmatched = df_old_tomerge[
+        ~df_old_tomerge["name_ranges"].isin(df_new["name_ranges"])
+    ]
+    for name, value in zip(unmatched["name_ranges"], unmatched["cell_values"]):
+        if name.startswith(("template_", *WASTE_NR_PREFIXES)) or name.endswith("_unit"):
+            continue
+        if all(v in (None, "") for row in value.values() or [] for v in row):
+            continue
+        sheet = get_DFcell(df_old, "sheets", ("name_ranges", name))
+        rng = get_DFcell(df_old, "cell_ranges", ("name_ranges", name)).replace("$", "")
+        c.issues.append(
+            f"'{name}' ({quote_sheetname(sheet)}!{rng}) has no place in the {version_new} template and was not migrated. Please re-enter it if it still applies."
+        )
+
+
 def get_indexes_of_NAs(df, column) -> list[int]:
     """Get the indexes of the rows where the specified column has NA values"""
     return df.loc[df[column].isna()].index.tolist()
