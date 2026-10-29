@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import NamedTuple
 
 import pytest
-from conftest import SAMPLE_PARAMS, migrated
+from conftest import migrated
 from openpyxl import Workbook
 from openpyxl.worksheet.formula import ArrayFormula
 
@@ -32,25 +32,22 @@ class TwoRunResult(NamedTuple):
     issues_b: list[str]
 
 
+@pytest.fixture(scope="module")
+def two_runs(sample_path) -> TwoRunResult:
+    """The shared migration of the sample, and a second, independent run."""
+    first = migrated(sample_path)
+    wb_b, _, issues_b = migrate_workbook(sample_path)
+    return TwoRunResult(
+        sample_path=sample_path,
+        wb_a=first.workbook,
+        wb_b=wb_b,
+        issues_a=first.issues,
+        issues_b=issues_b,
+    )
+
+
 class TestDeterminism:
     """Migration must be deterministic: same input → same output."""
-
-    @pytest.fixture(params=SAMPLE_PARAMS, scope="module")
-    def sample_path(self, request):
-        return request.param
-
-    @pytest.fixture(scope="module")
-    def two_runs(self, sample_path) -> TwoRunResult:
-        """The shared migration of the sample, and a second, independent run."""
-        first = migrated(sample_path)
-        wb_b, _, issues_b = migrate_workbook(sample_path)
-        return TwoRunResult(
-            sample_path=sample_path,
-            wb_a=first.workbook,
-            wb_b=wb_b,
-            issues_a=first.issues,
-            issues_b=issues_b,
-        )
 
     def test_issues_are_identical(self, two_runs: TwoRunResult):
         assert two_runs.issues_a == two_runs.issues_b, (

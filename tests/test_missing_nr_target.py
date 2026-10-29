@@ -6,14 +6,14 @@ from __future__ import annotations
 from importlib.resources import as_file, files
 
 import pytest
-from openpyxl import Workbook, load_workbook
+from openpyxl import Workbook
 from openpyxl.cell.cell import MergedCell
 from openpyxl.utils import range_boundaries
 from openpyxl.worksheet.formula import ArrayFormula
 
 from migration_tool.data.validations import VersionCollection
 from migration_tool.outils import MigrationError, resolveAnchors
-from migration_tool.tool import NEW_TEMPLATE_NAME, _missing_NR
+from migration_tool.tool import NEW_TEMPLATE_NAME, _missing_NR, load_workbook_quietly
 
 SHEET = "Social Disclosures"
 
@@ -89,7 +89,7 @@ def test_label_in_two_rows_is_an_error(wb):
 @pytest.fixture(scope="module")
 def target() -> Workbook:
     with as_file(files("migration_tool.data").joinpath(NEW_TEMPLATE_NAME)) as path:
-        return load_workbook(path)
+        return load_workbook_quietly(path)
 
 
 @pytest.fixture(scope="module")
