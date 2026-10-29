@@ -162,6 +162,77 @@ def create_table_of_contents(wb_values) -> dict[str, int]:
     return dict(zip(_keys, _values))
 
 
+Cell = tuple[str, int, int]  # sheet, column, row
+
+
+def _isFormula(value: Any) -> bool:
+    return isinstance(value, ArrayFormula) or (
+        isinstance(value, str) and value.startswith("=")
+    )
+
+
+def markerNames(wb: Workbook) -> set[str]:
+    """Names that only mark out an area (e.g. a table): every cell is covered by
+    disjoint, more specific names, which hold the data. Names with identical
+    areas are aliases and count once, markers nested inside don't count;
+    formula cells, and merged cells whose top-left is covered or a formula,
+    need no name."""
+    areas: dict[str, frozenset[Cell]] = {}
+    for name, defn in wb.defined_names.items():
+        try:
+            destinations = list(defn.destinations)
+        except AttributeError:
+            continue
+        cells: set[Cell] = set()
+        for sheet, ref in destinations:
+            left, top, right, bottom = range_boundaries(ref)
+            if sheet not in wb.sheetnames or None in (left, top, right, bottom):
+                break
+            cells.update(
+                (sheet, col, row)
+                for col in range(cast(int, left), cast(int, right) + 1)
+                for row in range(cast(int, top), cast(int, bottom) + 1)
+            )
+        else:
+            if cells:
+                areas[name] = frozenset(cells)
+
+    topLefts: dict[Cell, Cell] = {
+        (ws.title, col, row): (ws.title, merged.min_col, merged.min_row)
+        for ws in wb.worksheets
+        for merged in ws.merged_cells.ranges
+        for col in range(merged.min_col, merged.max_col + 1)
+        for row in range(merged.min_row, merged.max_row + 1)
+    }
+
+    def needsNoName(cell: Cell, covered: set[Cell]) -> bool:
+        sheet, col, row = cell
+        return cell in covered or _isFormula(wb[sheet].cell(row, col).value)
+
+    markers: set[str] = set()
+    # smallest first, so a table nested in another is known to be a marker
+    # (and not one of the outer table's data names) by the time we get there
+    for name, area in sorted(areas.items(), key=lambda item: len(item[1])):
+        inner = {
+            a
+            for n, a in areas.items()
+            if n not in markers and len(a) < len(area) and a <= area
+        }
+        covered: set[Cell] = set()
+        for innerArea in inner:
+            if covered & innerArea:
+                break
+            covered |= innerArea
+        else:
+            if inner and all(
+                needsNoName(cell, covered)
+                or ((topLeft := topLefts.get(cell)) and needsNoName(topLeft, covered))
+                for cell in area
+            ):
+                markers.add(name)
+    return markers
+
+
 def access_NR_table(
     wb: Workbook,
     c: IssuesCollector,
@@ -173,8 +244,11 @@ def access_NR_table(
     To handle this, a list of issues (str explaining where the issue is) is returned alongside the DataFrame."""
 
     rows: list[tuple[str, str | None, str | None, Shape]] = []
+    markers = markerNames(wb)
 
     for nr in wb.defined_names:
+        if nr in markers:
+            continue
         sheet, rng = try_fetch_NR_refs(nr, wb.defined_names, c)
 
         if old_sheet_names is not None and sheet not in old_sheet_names:
@@ -365,15 +439,15 @@ def convert_months(df: pd.DataFrame, version: str, dateLabels: tuple) -> None:
 def clean_NR_with_no_data(df):
     """Function to filter name ranges to process.
     Some (most starting with template_) were created for Digital Converter and not for storing data.
+    Markers (e.g. tables) never get here: access_NR_table skips them (see markerNames).
     Unfortunately, there were some exceptions and edge cases (see list_of_NRs_toNOTremove)."""
 
     list_of_keywords = [
         "template_",
         "enum_",
-        "Table",
-        "BreakdownOfEnergyConsumptionAxis",
-        "Hypercube",
     ]
+    # the energy table's row labels (template_label_ formulas), not data
+    list_of_NRs_toremove = ["BreakdownOfEnergyConsumptionAxis"]
 
     list_of_NRs_toNOTremove = [
         "template_reporting_entity_name",
@@ -390,6 +464,7 @@ def clean_NR_with_no_data(df):
 
     for kw in list_of_keywords:
         df = df[~df["name_ranges"].str.contains(kw, na=False)]
+    df = df[~df["name_ranges"].isin(list_of_NRs_toremove)]
 
     return pd.concat([df.reset_index(drop=True), df_toattach]).reset_index(drop=True)
 
