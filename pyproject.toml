@@ -16,7 +16,9 @@ requires-python = ">=3.11"
 
 [project.optional-dependencies]
 dev = [
-    "pytest>=8.0.0",
+    # <9.2 until pytest-xdist releases its fix for loadgroup under pytest 9.2
+    # (pytest-dev/pytest-xdist#1386); without it every worker re-runs each migration
+    "pytest>=9.0.0,<9.2",
     "pytest-github-actions-annotate-failures",
     "pytest-xdist>=3.0",
     "ruff>=0.15.2",
