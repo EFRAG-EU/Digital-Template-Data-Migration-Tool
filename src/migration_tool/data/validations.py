@@ -1,5 +1,6 @@
 import json
 from dataclasses import dataclass, field
+from typing import TypedDict
 
 
 def convertToNone(string: str) -> str | None:
@@ -7,6 +8,11 @@ def convertToNone(string: str) -> str | None:
     if string == NONESTRING:
         return None
     return string
+
+
+class RefsJson(TypedDict):
+    sheet: str
+    range: str | None
 
 
 @dataclass
@@ -26,18 +32,14 @@ class Version:
 class VersionCollection:
     versions: list[Version] = field(default_factory=list)
 
-    def add_version(self, version: str, labels_refs: dict[str, str]) -> Version:
-        labels = [lab for lab in labels_refs]
-        sheets = [ref.split("!")[0] for ref in labels_refs.values()]
-        ranges = [convertToNone(ref.split("!")[1]) for ref in labels_refs.values()]
+    def add_version(self, version: str, labels_refs: dict[str, RefsJson]) -> Version:
         trios = []
-        for i in range(len(labels)):
-            refsToAppend = Refs(
-                label=labels[i],
-                sheet=sheets[i],
-                range=ranges[i],
-            )
-            trios.append(refsToAppend)
+        for label, ref in labels_refs.items():
+            if set(ref) != {"sheet", "range"}:
+                raise ValueError(
+                    f"missing_NR {version} '{label}': expected keys 'sheet' and 'range', got {sorted(ref)}"
+                )
+            trios.append(Refs(label=label, sheet=ref["sheet"], range=ref["range"]))
         v = Version(version=version, missing_data=trios)
         self.versions.append(v)
         return v
@@ -85,20 +87,26 @@ class VersionCollection:
         return result
 
     @classmethod
-    def from_dict(cls, data: dict[str, dict[str, str]]) -> "VersionCollection":
+    def from_dict(cls, data: dict[str, dict[str, RefsJson]]) -> "VersionCollection":
         """
-        Build from: {"1.0.0": {"stable": "refs/tags/v1.0.0"}, ...}
+        Build from: {"1.0.0": {"StartDate": {"sheet": "General Information", "range": "$D$6:$E$8"}}, ...}
         """
         collection = cls()
         for version, labels_refs in data.items():
             collection.add_version(version, labels_refs)
         return collection
 
-    def dump_simple(self) -> dict[str, dict[str, str]]:
+    def dump_simple(self) -> dict[str, dict[str, RefsJson]]:
         """
-        Dump as: [{"1.0.0": {"stable": "refs/tags/v1.0.0", ...}}, ...]
+        Dump in the same shape from_dict() reads.
         """
-        return {v.version: self.get_version(v.version) for v in self.versions}
+        return {
+            v.version: {
+                ref.label: {"sheet": ref.sheet, "range": ref.range}
+                for ref in v.missing_data
+            }
+            for v in self.versions
+        }
 
     def write_json(self, filepath: str) -> None:
         with open(filepath, "w") as json_file:

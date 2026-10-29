@@ -15,7 +15,7 @@ import pandas as pd
 from openpyxl import Workbook
 from openpyxl import load_workbook as openpyxl_load_workbook
 
-from .data.validations import VersionCollection
+from .data.validations import RefsJson, VersionCollection
 from .decorators import cached_copy
 from .outils import (
     MigrationError,
@@ -89,7 +89,7 @@ def _mapping_wastes() -> pd.DataFrame:
 
 
 @cached_copy
-def _missing_NR() -> dict[str, dict[str, str]]:
+def _missing_NR() -> dict[str, dict[str, RefsJson]]:
     return json.loads(
         files("migration_tool.data")
         .joinpath("missing_NR.json")

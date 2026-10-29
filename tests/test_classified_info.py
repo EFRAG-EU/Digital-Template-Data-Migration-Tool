@@ -46,7 +46,7 @@ def _checkbox_rows_in_new_template() -> set[int]:
     rows: set[int] = set()
     for label, ref in _missing_NR()["2.0.0"].items():
         if label.endswith("_ToC"):
-            _, top, _, bottom = range_boundaries(ref.split("!")[1].replace("$", ""))
+            _, top, _, bottom = range_boundaries(ref["range"].replace("$", ""))
             rows.update(range(top, bottom + 1))
     return rows
 
