@@ -7,7 +7,8 @@
     "AmountOfWaterWithdrawnAtSitesLocatedInAreasOfHighWaterStress",
     "TotalWasteRecycledReusedAndDirectedToDisposalMass_unit",
     "NumberOfFatalitiesAsAResultOfWorkRelatedInjuriesAndWorkRelatedIllHealth",
-    "ListOfOmittedDisclosuresDeemedToBeClassifiedOrSensitiveInformation"
+    "ListOfOmittedDisclosuresDeemedToBeClassifiedOrSensitiveInformation",
+    "IdentifierOfSitesInBiodiversitySensitiveAreasTypedAxis"
   ],
   "1.0.1": [
     "NumberOfPermanentContactEmployees",
@@ -17,7 +18,8 @@
     "AmountOfWaterWithdrawnAtSitesLocatedInAreasOfHighWaterStress",
     "TotalWasteRecycledReusedAndDirectedToDisposalMass_unit",
     "NumberOfFatalitiesAsAResultOfWorkRelatedInjuriesAndWorkRelatedIllHealth",
-    "ListOfOmittedDisclosuresDeemedToBeClassifiedOrSensitiveInformation"
+    "ListOfOmittedDisclosuresDeemedToBeClassifiedOrSensitiveInformation",
+    "IdentifierOfSitesInBiodiversitySensitiveAreasTypedAxis"
   ],
   "1.1.0": [
     "NumberOfPermanentContractEmployees",
@@ -27,7 +29,8 @@
     "AmountOfWaterWithdrawnAtSitesLocatedInAreasOfHighWaterStress",
     "TotalWasteRecycledReusedAndDirectedToDisposalMass_unit",
     "NumberOfFatalitiesAsAResultOfWorkRelatedInjuriesAndWorkRelatedIllHealth",
-    "ListOfOmittedDisclosuresDeemedToBeClassifiedOrSensitiveInformation"
+    "ListOfOmittedDisclosuresDeemedToBeClassifiedOrSensitiveInformation",
+    "IdentifierOfSitesInBiodiversitySensitiveAreasTypedAxis"
   ],
   "1.1.1": [
     "NumberOfPermanentContractEmployees",
@@ -37,7 +40,8 @@
     "AmountOfWaterWithdrawnAtSitesLocatedInAreasOfHighWaterStress",
     "TotalWasteRecycledReusedAndDirectedToDisposalMass_unit",
     "NumberOfFatalitiesAsAResultOfWorkRelatedInjuriesAndWorkRelatedIllHealth",
-    "ListOfOmittedDisclosuresDeemedToBeClassifiedOrSensitiveInformation"
+    "ListOfOmittedDisclosuresDeemedToBeClassifiedOrSensitiveInformation",
+    "IdentifierOfSitesInBiodiversitySensitiveAreasTypedAxis"
   ],
   "1.2.0": [
     "NumberOfPermanentContractEmployees",
@@ -47,7 +51,8 @@
     "AmountOfWaterWithdrawnAtSitesLocatedInAreasOfHighWaterStress",
     "TotalWasteRecycledReusedAndDirectedToDisposalMass_unit",
     "NumberOfFatalitiesAsAResultOfWorkRelatedInjuriesAndWorkRelatedIllHealth",
-    "ListOfOmittedDisclosuresDeemedToBeClassifiedOrSensitiveInformation"
+    "ListOfOmittedDisclosuresDeemedToBeClassifiedOrSensitiveInformation",
+    "IdentifierOfSitesInBiodiversitySensitiveAreasTypedAxis"
   ],
   "1.3.0": [
     "NumberOfPermanentContractEmployees",
@@ -57,7 +62,8 @@
     "AmountOfWaterWithdrawnAtSitesLocatedInAreasOfHighWaterStress",
     "TotalWasteRecycledReusedAndDirectedToDisposalMass_unit",
     "NumberOfFatalitiesAsAResultOfWorkRelatedInjuriesAndWorkRelatedIllHealth",
-    "ListOfOmittedDisclosuresDeemedToBeClassifiedOrSensitiveInformation"
+    "ListOfOmittedDisclosuresDeemedToBeClassifiedOrSensitiveInformation",
+    "IdentifierOfSitesInBiodiversitySensitiveAreasTypedAxis"
   ],
   "2.0.0": [
     "NumberOfPermanentContractEmployees",
@@ -67,6 +73,7 @@
     "AmountOfWaterConsumedAtSitesLocatedInAreasWithWaterStress",
     "WasteGeneratedMass_unit",
     "SumOfFatalitiesAsAResultOfRecordableWorkRelatedAccidentsAndRecordableWorkRelatedIllHealth",
-    "ListOfOmittedDisclosures"
+    "ListOfOmittedDisclosures",
+    "IdentifierOfSiteTypedAxis_SitesInBiodiversitySensitiveAreasTable"
   ]
 }

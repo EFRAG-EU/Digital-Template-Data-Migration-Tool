@@ -36,6 +36,7 @@ from .outils import (
     get_NR_singlevalue,
     get_version,
     paste_values,
+    report_unmigrated_NR,
     resolveAnchors,
 )
 
@@ -221,6 +222,7 @@ def migrate_workbook(
         df_old_wv, version_cell, version_cell_new, _NR_changes()
     )
     df_old_tomerge = clean_NR_with_no_data(df_old_tomerge)
+    report_unmigrated_NR(df_old, df_old_tomerge, df_new, version_cell_new, c)
     if version_cell in ["1.0.0", "1.0.1"]:
         change_wastes(df_old_tomerge, mapping_wastes, c)
 

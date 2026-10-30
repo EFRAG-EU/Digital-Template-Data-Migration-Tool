@@ -6,6 +6,9 @@ from collections import Counter
 
 import pytest
 from conftest import EXPECTED_ISSUES, SAMPLE_PATHS, MigrationResult
+from openpyxl import Workbook
+
+from migration_tool.tool import load_workbook_quietly
 
 if not SAMPLE_PATHS:
     pytest.fail(
@@ -82,4 +85,25 @@ class TestExpectedIssues:
         }
         assert not duplicates, (
             f"Duplicate issues for {migration_result.sample_path.name}:\n  {duplicates}"
+        )
+
+
+def _columnValues(wb: Workbook, name: str) -> list:
+    ((sheet, rng),) = wb.defined_names[name].destinations
+    return [cell.value for (cell,) in wb[sheet][rng] if cell.value is not None]
+
+
+class TestCarriedValues:
+    def test_biodiversity_site_ids_are_carried(self, migration_result: MigrationResult):
+        old = load_workbook_quietly(migration_result.sample_path, data_only=False)
+        oldIds = _columnValues(
+            old, "IdentifierOfSitesInBiodiversitySensitiveAreasTypedAxis"
+        )
+        assert oldIds
+        assert (
+            _columnValues(
+                migration_result.workbook,
+                "IdentifierOfSiteTypedAxis_SitesInBiodiversitySensitiveAreasTable",
+            )
+            == oldIds
         )

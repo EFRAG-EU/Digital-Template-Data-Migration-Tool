@@ -17,6 +17,7 @@ from migration_tool.outils import (
     get_DFcell,
     get_NR_singlevalue,
     markerNames,
+    report_unmigrated_NR,
     set_DFcell,
     try_fetch_NR_refs,
 )
@@ -256,3 +257,51 @@ class TestTargetCellsByLabel:
 
 
 ### to continue with other unit tests for functions in outils.py
+
+
+class TestUnmigratedNR:
+    """Old names holding data with no name in the new template are reported, not dropped silently."""
+
+    @staticmethod
+    def _report(oldValues: dict[str, list[list]]) -> list[str]:
+        names = list(oldValues)
+        df_old = pd.DataFrame(
+            {
+                "name_ranges": names,
+                "sheets": ["Environmental Disclosures"] * len(names),
+                "cell_ranges": ["$G$188:$I$189"] * len(names),
+            }
+        )
+        df_old_tomerge = pd.DataFrame(
+            {
+                "name_ranges": names,
+                "cell_values": [make_value(v) for v in oldValues.values()],
+            }
+        )
+        df_new = pd.DataFrame({"name_ranges": ["Kept"]})
+        c = IssuesCollector()
+        report_unmigrated_NR(df_old, df_old_tomerge, df_new, "2.0.0", c)
+        return c.issues
+
+    def test_name_with_data_is_reported(self):
+        assert self._report({"Gone": [[None], [1200]]}) == [
+            "'Gone' ('Environmental Disclosures'!G188:I189) has no place in the 2.0.0 template and was not migrated. Please re-enter it if it still applies."
+        ]
+
+    def test_empty_name_and_formula_are_not_reported(self):
+        assert self._report({"Empty": [[None], [""]], "Formula": None}) == []
+
+    def test_names_in_the_new_template_are_not_reported(self):
+        assert self._report({"Kept": [[1]]}) == []
+
+    def test_units_template_and_waste_names_are_not_reported(self):
+        assert (
+            self._report(
+                {
+                    "Gone_unit": [["m2"]],
+                    "template_checkbox_b5_biodiversity_land_use": [[True]],
+                    "WasteDirectedToDisposalMass": [[300]],
+                }
+            )
+            == []
+        )

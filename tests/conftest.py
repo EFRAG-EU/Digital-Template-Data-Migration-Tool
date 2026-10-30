@@ -39,10 +39,54 @@ XFAIL_SAMPLES: dict[str, str] = {
 STATEMENT_OF_COMPLIANCE_ISSUE = "New Template requires explicit statement of compliance (see 'General Information' for more)."
 SOCIAL_CHANGES_FLAG = "New required information in the 'Social Disclosures' sheet (see cell-level comments for more)."
 
+
+def unmigrated(name: str, ref: str) -> str:
+    return f"'{name}' ({ref}) has no place in the 2.0.0 template and was not migrated. Please re-enter it if it still applies."
+
+
+def unmigratedTrainingHours(male: int) -> list[str]:
+    """Training hours by gender: Male, Female, Other, Non-reported from row *male*, issued alphabetically."""
+    return [
+        unmigrated(
+            f"AverageNumberOfAnnualTrainingHoursPer{gender}Employee",
+            f"'Social Disclosures'!D{row}",
+        )
+        for gender, row in (
+            ("Female", male + 1),
+            ("Male", male),
+            ("NonReportedGender", male + 3),
+            ("OtherGender", male + 2),
+        )
+    ]
+
+
+AREA_OF_SITE = "AreaOfSiteInBiodiversitySensitiveArea"
+UNMIGRATED_1_0 = [
+    unmigrated(AREA_OF_SITE, "'Environmental Disclosures'!G128:I153"),
+    *unmigratedTrainingHours(66),
+]
+UNMIGRATED_1_1_0 = [
+    unmigrated(AREA_OF_SITE, "'Environmental Disclosures'!G128:I153"),
+    *unmigratedTrainingHours(67),
+]
+UNMIGRATED_1_1_1 = [
+    unmigrated(AREA_OF_SITE, "'Environmental Disclosures'!G188:I287"),
+    *unmigratedTrainingHours(157),
+    unmigrated(
+        "TotalNatureOrientedAreaOffSite", "'Environmental Disclosures'!D297:F297"
+    ),
+    unmigrated(
+        "TotalNatureOrientedAreaOnSite", "'Environmental Disclosures'!D296:F296"
+    ),
+    unmigrated("TotalSealedArea", "'Environmental Disclosures'!D295:F295"),
+    unmigrated("TotalUseOfLand", "'Environmental Disclosures'!D298:F298"),
+]
+
 EXPECTED_ISSUES: dict[str, list[str]] = {
     "VSME-Digital-Template-Sample-1.0.0.xlsx": [
         STATEMENT_OF_COMPLIANCE_ISSUE,
         SOCIAL_CHANGES_FLAG,
+        *UNMIGRATED_1_0,
         "Waste category '101102 Non-Hazardous Waste - Waste glass' not present in new Regulation. Please, see https://eur-lex.europa.eu/legal-content/EN/TXT/PDF/?uri=CELEX:32014D0955",
         "Waste category '040201 Non-Hazardous Waste - Waste from unprocessed textile fibres and other natural fibrous substances mainly of vegetable origin' not present in new Regulation. Please, see https://eur-lex.europa.eu/legal-content/EN/TXT/PDF/?uri=CELEX:32014D0955",
         "Issues in Energy Consumption sums. Please check the Environmental Disclosures and the Fuel Converter sheets.",
@@ -50,11 +94,13 @@ EXPECTED_ISSUES: dict[str, list[str]] = {
     "VSME-Digital-Template-Sample-1.0.0_withoutdate.xlsx": [
         STATEMENT_OF_COMPLIANCE_ISSUE,
         SOCIAL_CHANGES_FLAG,
+        *UNMIGRATED_1_0,
         "Issues in Energy Consumption sums. Please check the Environmental Disclosures and the Fuel Converter sheets.",
     ],
     "VSME-Digital-Template-Sample-1.0.1.xlsx": [
         STATEMENT_OF_COMPLIANCE_ISSUE,
         SOCIAL_CHANGES_FLAG,
+        *UNMIGRATED_1_0,
         "Waste category '101102 Non-Hazardous Waste - Waste glass' not present in new Regulation. Please, see https://eur-lex.europa.eu/legal-content/EN/TXT/PDF/?uri=CELEX:32014D0955",
         "Waste category '040201 Non-Hazardous Waste - Waste from unprocessed textile fibres and other natural fibrous substances mainly of vegetable origin' not present in new Regulation. Please, see https://eur-lex.europa.eu/legal-content/EN/TXT/PDF/?uri=CELEX:32014D0955",
     ],
@@ -62,34 +108,41 @@ EXPECTED_ISSUES: dict[str, list[str]] = {
         "The old workbook is incomplete. Migration happened only for the filled-out cells, but some data might be missing.",
         STATEMENT_OF_COMPLIANCE_ISSUE,
         SOCIAL_CHANGES_FLAG,
+        *UNMIGRATED_1_0,
     ],
     "VSME-Digital-Template-Sample-1.1.0.xlsx": [
         "Name range 'MostSeniorLevelAccountableForImplementationOfPracticesPoliciesAndOrFutureInitiatives' refers to sheet '[1]General Information' which is not present in the old workbook. This name range has been ignored in the migration.",
         STATEMENT_OF_COMPLIANCE_ISSUE,
         SOCIAL_CHANGES_FLAG,
+        *UNMIGRATED_1_1_0,
     ],
     "VSME-Digital-Template-Sample-1.1.1.xlsx": [
         "The old workbook is incomplete. Migration happened only for the filled-out cells, but some data might be missing.",
         STATEMENT_OF_COMPLIANCE_ISSUE,
         SOCIAL_CHANGES_FLAG,
+        *UNMIGRATED_1_1_1,
     ],
     "VSME-Digital-Template-Sample-1.1.1_classifiedinfo.xlsx": [
         STATEMENT_OF_COMPLIANCE_ISSUE,
         SOCIAL_CHANGES_FLAG,
+        *UNMIGRATED_1_1_1,
     ],
     "VSME-Digital-Template-Sample-1.2.0.xlsx": [
         "Name range 'DescriptionOfATargetRelatedToAPolicy' has 0 destinations (expected 1; value: '\"(=\\'General Information\\'!$E$520;=\\'General Information\\'!$E$530)\"'). This name range has been ignored in the migration.",
         "Name range 'DescriptionOfATargetRelatedToAPolicy' refers to sheet '' which is not present in the old workbook. This name range has been ignored in the migration.",
         STATEMENT_OF_COMPLIANCE_ISSUE,
         SOCIAL_CHANGES_FLAG,
+        *UNMIGRATED_1_1_1,
     ],
     "VSME-Digital-Template-Sample-1.2.0_otherlanguage.xlsx": [
         STATEMENT_OF_COMPLIANCE_ISSUE,
         SOCIAL_CHANGES_FLAG,
+        *UNMIGRATED_1_1_1,
     ],
     "VSME-Digital-Template-Sample-1.3.0.xlsx": [
         STATEMENT_OF_COMPLIANCE_ISSUE,
         SOCIAL_CHANGES_FLAG,
+        *UNMIGRATED_1_1_1,
     ],
 }
 
