@@ -41,7 +41,7 @@ from .outils import (
 )
 
 FilePathOrBinaryBlob: TypeAlias = str | Path | io.BufferedIOBase
-NEW_TEMPLATE_NAME = "VS-Digital-Template-2.0.xlsx"
+NEW_TEMPLATE_NAME = "VS-Digital-Template-2.0.0.xlsx"
 STATUS_NR = "template_overall_validation_status"
 ENTRY_POINT_NR = "template_reporting_schemaRef"
 
