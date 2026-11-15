@@ -256,6 +256,18 @@ class TestNullValue:
         value.paste(Workbook().active, NullShape())
         assert value.values() is None
 
+    def test_overrides_every_value_method(self):
+        # an inherited method would reach for the _block a NullValue never has
+        valueMethods = {
+            name
+            for name, attr in vars(Value).items()
+            if callable(attr) and not name.startswith("__")
+        }
+        assert valueMethods - set(vars(NullValue)) == set()
+
+    def test_has_no_size(self):
+        assert (NullValue().height(), NullValue().width()) == (0, 0)
+
 
 # --- make_value ------------------------------------------------------------
 
@@ -294,3 +306,11 @@ def test_sum_two_ranges_gives_none_unless_both_are_numbers(left, right):
     assert make_value([[left]]).sum_two_ranges(make_value([[right]])).values() == [
         [None]
     ]
+
+
+@pytest.mark.parametrize(
+    "left,right",
+    [(NullValue(), make_value([[1]])), (make_value([[1]]), NullValue())],
+)
+def test_sum_two_ranges_with_a_null_side_is_null(left, right):
+    assert type(left.sum_two_ranges(right)) is NullValue

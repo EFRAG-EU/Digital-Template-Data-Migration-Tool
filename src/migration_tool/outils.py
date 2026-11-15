@@ -372,6 +372,8 @@ def change_wastes(df: pd.DataFrame, mapping, c: IssuesCollector):
     waste_block = cast(
         Value, get_DFcell(df, "cell_values", ("name_ranges", WASTECATEGORIES_NR))
     )
+    if not waste_block:
+        return
     old_wastes = waste_block.first_element_row(double_list=False)
 
     new_wastes: list[list[str]] = []
@@ -408,12 +410,16 @@ def adjust_wasteValues(
         Value, get_DFcell(old_df, "cell_values", ("name_ranges", DIVERTED_NR))
     )
     tot_waste = reuse_recycle.sum_two_ranges(diverted)
+    if not tot_waste:
+        c.issues.append(
+            "Total waste generated could not be calculated: the old 'Waste diverted to recycle or reuse' or 'Waste directed to disposal' cells hold formulas or broken references. Please enter it in the new template."
+        )
 
     # add helper comments to each populated cell in the range
     comment = "Old 'Waste diverted to recycle or reuse' cell value: "
-    block = reuse_recycle.values()
+    block = reuse_recycle.values() or []
     for row in range(shape.top(), shape.top() + len(block)):
-        if block and (reuse_recycle_sum := block[row - shape.top()][0]) is not None:
+        if (reuse_recycle_sum := block[row - shape.top()][0]) is not None:
             cell = new_wb[sheet].cell(row=row, column=shape.left())
             cell.comment = Comment(f"{comment}{reuse_recycle_sum}", "Migration tool")
 
@@ -630,7 +636,7 @@ def classified_info_handling(value, table_of_contents, pyxl, version) -> None:
     """
 
     if version in ["1.0.0", "1.0.1", "1.1.0", "1.1.1"]:
-        for input in value.values():
+        for input in value.values() or []:
             if input[0] is not None:
                 match = [
                     s for s in table_of_contents if input[0][0:2] in s

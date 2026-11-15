@@ -8,11 +8,14 @@ from openpyxl import Workbook
 from openpyxl.utils import absolute_coordinate, quote_sheetname
 from openpyxl.workbook.defined_name import DefinedName
 
-from migration_tool.classes import make_value
+from migration_tool.classes import NullValue, make_value
 from migration_tool.outils import (
     access_NR_table,
     adjust_countriesOfOperation,
+    adjust_wasteValues,
     assess_energyConsumption_validation,
+    change_wastes,
+    classified_info_handling,
     clean_NR_with_no_data,
     get_DFcell,
     get_NR_singlevalue,
@@ -305,3 +308,75 @@ class TestUnmigratedNR:
             )
             == []
         )
+
+
+class TestNullWasteValues:
+    """Old waste ranges holding a formula or a broken reference come through as NullValue."""
+
+    @staticmethod
+    def _adjust(reuse, disposal) -> tuple[pd.DataFrame, Workbook, list[str]]:
+        wb = Workbook()
+        wb.active.title = "Environmental Disclosures"
+        _create_NR(
+            wb,
+            "WasteGeneratedMass",
+            (quote_sheetname("Environmental Disclosures"), "G10:G11"),
+        )
+        old_df = pd.DataFrame(
+            {
+                "name_ranges": [
+                    "WasteDivertedToRecycleOrReuseMass",
+                    "WasteDirectedToDisposalMass",
+                ],
+                "cell_values": [make_value(reuse), make_value(disposal)],
+            }
+        )
+        c = IssuesCollector()
+        new_df = adjust_wasteValues(
+            old_df,
+            pd.DataFrame(
+                columns=[
+                    "name_ranges",
+                    "sheets",
+                    "cell_ranges",
+                    "cell_shapes",
+                    "cell_values",
+                ]
+            ),
+            wb,
+            c,
+        )
+        return new_df, wb, c.issues
+
+    def test_both_ranges_are_summed(self):
+        new_df, wb, issues = self._adjust([[100], [None]], [[50], [7]])
+        total = get_DFcell(new_df, "cell_values", ("name_ranges", "WasteGeneratedMass"))
+        assert total.values() == [[150], [None]]
+        assert wb["Environmental Disclosures"]["G10"].comment is not None
+        assert issues == []
+
+    @pytest.mark.parametrize(
+        "reuse,disposal", [(None, [[50], [7]]), ([[100], [None]], None)]
+    )
+    def test_null_range_leaves_total_empty_and_is_reported(self, reuse, disposal):
+        new_df, _, issues = self._adjust(reuse, disposal)
+        total = get_DFcell(new_df, "cell_values", ("name_ranges", "WasteGeneratedMass"))
+        assert type(total) is NullValue
+        assert len(issues) == 1 and issues[0].startswith(
+            "Total waste generated could not be calculated"
+        )
+
+
+def test_change_wastes_keeps_null_categories():
+    df = pd.DataFrame(
+        {"name_ranges": ["TypeOfWasteAxis"], "cell_values": [NullValue()]}
+    )
+    change_wastes(df, pd.DataFrame(columns=["old", "new"]), IssuesCollector())
+    assert (
+        type(get_DFcell(df, "cell_values", ("name_ranges", "TypeOfWasteAxis")))
+        is NullValue
+    )
+
+
+def test_classified_info_handling_skips_null_value():
+    classified_info_handling(NullValue(), {"B1 x": 5}, Workbook(), "1.0.0")
