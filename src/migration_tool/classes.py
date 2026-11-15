@@ -213,8 +213,11 @@ class Value:
     def sum_two_ranges(self, range_valueObj: Value) -> Value:
         """Sum two 1-column numeric (int or float) ranges, row by row.
 
-        A row where either side is empty or not a number sums to None.
+        A row where either side is empty or not a number sums to None,
+        and a null range on the other side makes the whole sum null.
         """
+        if not range_valueObj:
+            return NullValue()
 
         def isNumber(item: object) -> bool:
             # bool is an int subclass, but True + 1 is not a sum of two quantities
@@ -266,6 +269,12 @@ class NullValue(Value):
     def values(self) -> None:
         return None
 
+    def height(self) -> int:
+        return 0
+
+    def width(self) -> int:
+        return 0
+
     def topleft(self) -> None:
         return None
 
@@ -283,6 +292,9 @@ class NullValue(Value):
 
     def count_uniques(self) -> int:
         return 0
+
+    def sum_two_ranges(self, range_valueObj: Value) -> Value:
+        return NullValue()
 
     def paste(self, sheet: Worksheet, shape: Shape) -> None:
         return None
