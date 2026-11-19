@@ -271,7 +271,7 @@ def access_missingNR_table(missingNR: VersionCollection, version: str) -> pd.Dat
     """
     Access sheets, cell references and coordinates of each missing name range.
     The json data contained in missingNR is listed by hand because certain name ranges were not present in old VSME versions.
-    The json is saved in src/migration_tool/data (see validations.py for data structure); the target version's
+    The json is saved in src/migration_tool/data (see validations.py for data structure); the version's
     anchors must be resolved first (see resolveAnchors).
     """
 
@@ -321,7 +321,7 @@ def resolveAnchors(missingNR: VersionCollection, version: str, wb: Workbook) -> 
         rows = labelRows[ref.sheet].get(anchor.label, set())
         if len(rows) != 1:
             raise MigrationError(
-                f"The target template has {len(rows)} rows labelled '{anchor.label}' in '{ref.sheet}' (for '{ref.label}'); expected exactly one."
+                f"The {version} template has {len(rows)} rows labelled '{anchor.label}' in '{ref.sheet}' (for '{ref.label}'); expected exactly one."
             )
         (labelRow,) = rows
         top = labelRow + anchor.rowOffset

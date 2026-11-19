@@ -188,8 +188,11 @@ def migrate_workbook(
     df_old = access_NR_table(old_wb_obj, c, old_wb_sheet_names)
     df_new = access_NR_table(new_wb_empty, c)
 
-    resolveAnchors(missingNR, version_cell_new, new_wb_empty)
+    # A version shares one set of refs, so resolve and read the old workbook's
+    # before the new one's (the old version may be the new one).
+    resolveAnchors(missingNR, version_cell, old_wb_obj)
     missingNR_df_old = access_missingNR_table(missingNR, version_cell)
+    resolveAnchors(missingNR, version_cell_new, new_wb_empty)
     missingNR_df_new = access_missingNR_table(missingNR, version_cell_new)
 
     df_old_wv = copy_values(old_wb_obj, df_old, NRflag=True)
