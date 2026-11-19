@@ -75,5 +75,16 @@
     "SumOfFatalitiesAsAResultOfRecordableWorkRelatedAccidentsAndRecordableWorkRelatedIllHealth",
     "ListOfOmittedDisclosures",
     "IdentifierOfSiteTypedAxis_SitesInBiodiversitySensitiveAreasTable"
+  ],
+  "2.0.1": [
+    "NumberOfPermanentContractEmployees",
+    "DescriptionOfTheEffectiveParticipationOfWorkersUsersOrOtherInterestedPartiesOrCommunitiesInGovernance",
+    "MostSeniorLevelInTheUndertakingAccountableForImplementationOfPracticesPoliciesAndFutureInitiatives",
+    "RevenueDerivedFromTheProhibitedWeaponsIndustryAntiPersonnelMinesClusterMunitionsChemicalWeaponsAndBiologicalWeapons",
+    "AmountOfWaterConsumedAtSitesLocatedInAreasWithWaterStress",
+    "WasteGeneratedMass_unit",
+    "SumOfFatalitiesAsAResultOfRecordableWorkRelatedAccidentsAndRecordableWorkRelatedIllHealth",
+    "ListOfOmittedDisclosures",
+    "IdentifierOfSiteTypedAxis_SitesInBiodiversitySensitiveAreasTable"
   ]
 }

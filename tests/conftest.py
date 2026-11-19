@@ -18,6 +18,7 @@ if str(SRC_DIR) not in sys.path:
 
 from openpyxl import Workbook
 
+from migration_tool import migration_target
 from migration_tool.tool import migrate_workbook
 
 SAMPLES_DIR = REPO_ROOT / "tests" / "templates_samples"
@@ -41,7 +42,7 @@ SOCIAL_CHANGES_FLAG = "New required information in the 'Social Disclosures' shee
 
 
 def unmigrated(name: str, ref: str) -> str:
-    return f"'{name}' ({ref}) has no place in the 2.0.0 template and was not migrated. Please re-enter it if it still applies."
+    return f"'{name}' ({ref}) has no place in the {migration_target().target_template_version} template and was not migrated. Please re-enter it if it still applies."
 
 
 def unmigratedTrainingHours(male: int) -> list[str]:

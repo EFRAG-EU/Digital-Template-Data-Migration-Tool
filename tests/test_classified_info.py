@@ -13,6 +13,7 @@ import pytest
 from conftest import SAMPLES_DIR, migrated
 from openpyxl.utils import range_boundaries
 
+from migration_tool import migration_target
 from migration_tool.data.validations import VersionCollection
 from migration_tool.outils import resolveAnchors
 from migration_tool.tool import _missing_NR, load_workbook_quietly, migrate_workbook
@@ -44,10 +45,11 @@ def test_list_from_before_1_2_0_ticks_the_matching_checkboxes():
 
 
 def _checkbox_rows_in_new_template(new_wb) -> set[int]:
+    target = migration_target().target_template_version
     refs = VersionCollection.from_dict(_missing_NR())
-    resolveAnchors(refs, "2.0.0", new_wb)
+    resolveAnchors(refs, target, new_wb)
     rows: set[int] = set()
-    for ref in refs.getRefs("2.0.0"):
+    for ref in refs.getRefs(target):
         if ref.label.endswith("_ToC") and ref.range:
             _, top, _, bottom = range_boundaries(ref.range.replace("$", ""))
             rows.update(range(top, bottom + 1))
