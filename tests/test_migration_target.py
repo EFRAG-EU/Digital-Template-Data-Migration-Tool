@@ -27,8 +27,8 @@ def _workbook_with_version_cell(value: object | None) -> Workbook:
 class TestMigrationTarget:
     def test_is_the_bundled_vs_template(self):
         assert migration_target() == MigrationTarget(
-            target_template_version="2.0.0",
-            target_entry_point="https://xbrl.efrag.org/taxonomy/vs/2026-10-16/vs-all.xsd",
+            target_template_version="2.0.1",
+            target_entry_point="https://xbrl.efrag.org/taxonomy/vs/draft-2026-11-17/vs-all.xsd",
         )
 
     def test_is_cached(self):

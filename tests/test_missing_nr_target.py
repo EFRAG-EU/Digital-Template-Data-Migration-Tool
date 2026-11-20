@@ -1,21 +1,25 @@
 """The target template's helper cells are found by their row's template label,
-so rows inserted in a new template release move them along."""
+so rows inserted in a new template release move them along. A VS workbook being
+migrated has its helper cells found the same way."""
 
 from __future__ import annotations
 
 from importlib.resources import as_file, files
 
 import pytest
+from conftest import SAMPLES_DIR, migrated
 from openpyxl import Workbook
 from openpyxl.cell.cell import MergedCell
 from openpyxl.utils import range_boundaries
 from openpyxl.worksheet.formula import ArrayFormula
 
+from migration_tool import migration_target
 from migration_tool.data.validations import VersionCollection
 from migration_tool.outils import MigrationError, resolveAnchors
 from migration_tool.tool import NEW_TEMPLATE_NAME, _missing_NR, load_workbook_quietly
 
 SHEET = "Social Disclosures"
+TARGET = migration_target().target_template_version
 
 
 def _collection(**anchor) -> VersionCollection:
@@ -95,14 +99,14 @@ def target() -> Workbook:
 @pytest.fixture(scope="module")
 def targetRefs(target) -> VersionCollection:
     collection = VersionCollection.from_dict(_missing_NR())
-    resolveAnchors(collection, "2.0.0", target)
+    resolveAnchors(collection, TARGET, target)
     return collection
 
 
 def test_every_target_cell_is_anchored():
     fixed = [
         label
-        for label, ref in _missing_NR()["2.0.0"].items()
+        for label, ref in _missing_NR()[TARGET].items()
         if "anchor" not in ref and ref.get("range") is not None
     ]
     assert fixed == []
@@ -112,10 +116,40 @@ def test_every_target_cell_is_writable(target, targetRefs):
     """Each range starts on a real cell, not inside a merged block: writing a
     value or comment there would fail (as it did when rows were inserted)."""
     broken = []
-    for ref in targetRefs.getRefs("2.0.0"):
+    for ref in targetRefs.getRefs(TARGET):
         if ref.range is None:
             continue
         left, top, _, _ = range_boundaries(ref.range.replace("$", ""))
         if isinstance(target[ref.sheet].cell(top, left), MergedCell):
             broken.append(f"{ref.label}: {ref.sheet}!{ref.range}")
     assert broken == []
+
+
+# --- a VS workbook being migrated ---------------------------------------------
+
+SAMPLE_2_0_0 = SAMPLES_DIR / "VS-Digital-Template-Sample-2.0.0.xlsx"
+
+
+def _helperValues(wb: Workbook, version: str) -> dict[str, tuple[object, ...]]:
+    refs = VersionCollection.from_dict(_missing_NR())
+    resolveAnchors(refs, version, wb)
+    values = {}
+    for ref in refs.getRefs(version):
+        if ref.range is None:
+            continue
+        left, top, right, bottom = range_boundaries(ref.range.replace("$", ""))
+        ws = wb[ref.sheet]
+        values[ref.label] = tuple(
+            ws.cell(row, col).value
+            for row in range(top, bottom + 1)
+            for col in range(left, right + 1)
+        )
+    return values
+
+
+# Same xdist group as that sample's other tests, so they share one migration.
+@pytest.mark.xdist_group(SAMPLE_2_0_0.name)
+def test_2_0_0_helper_cells_carry_over():
+    old = load_workbook_quietly(SAMPLE_2_0_0)
+    new = migrated(SAMPLE_2_0_0).workbook
+    assert _helperValues(new, TARGET) == _helperValues(old, "2.0.0")

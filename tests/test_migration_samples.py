@@ -93,17 +93,14 @@ def _columnValues(wb: Workbook, name: str) -> list:
     return [cell.value for (cell,) in wb[sheet][rng] if cell.value is not None]
 
 
+SITE_IDS_VSME = "IdentifierOfSitesInBiodiversitySensitiveAreasTypedAxis"
+SITE_IDS_VS = "IdentifierOfSiteTypedAxis_SitesInBiodiversitySensitiveAreasTable"
+
+
 class TestCarriedValues:
     def test_biodiversity_site_ids_are_carried(self, migration_result: MigrationResult):
         old = load_workbook_quietly(migration_result.sample_path, data_only=False)
-        oldIds = _columnValues(
-            old, "IdentifierOfSitesInBiodiversitySensitiveAreasTypedAxis"
-        )
+        oldName = SITE_IDS_VS if SITE_IDS_VS in old.defined_names else SITE_IDS_VSME
+        oldIds = _columnValues(old, oldName)
         assert oldIds
-        assert (
-            _columnValues(
-                migration_result.workbook,
-                "IdentifierOfSiteTypedAxis_SitesInBiodiversitySensitiveAreasTable",
-            )
-            == oldIds
-        )
+        assert _columnValues(migration_result.workbook, SITE_IDS_VS) == oldIds
