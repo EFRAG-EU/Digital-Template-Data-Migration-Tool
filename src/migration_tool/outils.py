@@ -509,6 +509,89 @@ def report_unmigrated_NR(
         )
 
 
+SUSTAINABILITY_ISSUES_NR = (
+    "SustainabilityIssueAddressedByPracticePolicyAndOrFutureInitiative"
+)
+# B2's column headers: template labels from 1.1.0, plain English before
+OWN_WORKFORCE_HEADERS = ("template_label_own_workforce", "Own workforce")
+WORKERS_HEADERS = (
+    "template_label_workers_in_the_value_chain",
+    "Workers in the value chain",
+)
+
+
+def _header(value: Any) -> str | None:
+    text = value.text if isinstance(value, ArrayFormula) else value
+    if not isinstance(text, str):
+        return None
+    match = TEMPLATE_LABEL.fullmatch(text)
+    return match.group(1) if match else text.strip()
+
+
+def mergeSustainabilityIssues(
+    dfOld: pd.DataFrame,
+    dfOldToMerge: pd.DataFrame,
+    dfNew: pd.DataFrame,
+    oldWb: Workbook,
+    c: IssuesCollector,
+) -> None:
+    """VS 2.0.1 merges B2's 'Own workforce' and 'Workers in the value chain' tick boxes into one.
+    The old columns are found by their headers, never by position: either ticked ticks the merged
+    box. If they can't be found B2 is left empty, as a shifted row would tick the wrong issues."""
+
+    if not (dfOldToMerge["name_ranges"] == SUSTAINABILITY_ISSUES_NR).any():
+        return
+    value = cast(
+        Value,
+        get_DFcell(
+            dfOldToMerge, "cell_values", ("name_ranges", SUSTAINABILITY_ISSUES_NR)
+        ),
+    )
+    shape = cast(
+        Shape,
+        get_DFcell(dfNew, "cell_shapes", ("name_ranges", SUSTAINABILITY_ISSUES_NR)),
+    )
+    if not value or not shape or value.height() != 1 or value.width() <= shape.cols():
+        return
+
+    sheet = get_DFcell(dfOld, "sheets", ("name_ranges", SUSTAINABILITY_ISSUES_NR))
+    old = cast(
+        Shape,
+        get_DFcell(dfOld, "cell_shapes", ("name_ranges", SUSTAINABILITY_ISSUES_NR)),
+    )
+    headers = [
+        _header(oldWb[sheet].cell(old.top() - 1, col).value)
+        for col in range(old.left(), old.right() + 1)
+    ]
+    own = next((i for i, h in enumerate(headers) if h in OWN_WORKFORCE_HEADERS), None)
+    workers = next((i for i, h in enumerate(headers) if h in WORKERS_HEADERS), None)
+    if own is None or workers is None or value.width() - 1 != shape.cols():
+        set_DFcell(
+            dfOldToMerge,
+            "cell_values",
+            make_value(None),
+            ("name_ranges", SUSTAINABILITY_ISSUES_NR),
+        )
+        c.issues.append(
+            "The sustainability issues addressed by practices, policies and future initiatives (B2) could not be migrated, as the new template merges 'Own workforce' and 'Workers in the value chain'. Please tick them again in 'General Information'."
+        )
+        return
+
+    row = value.values()[0]  # type: ignore[index]
+    if row[workers] is True:
+        c.issues.append(
+            "B2's 'Own workforce' and 'Workers in the value chain' are one sustainability issue in the new template, 'Own workforce and Workers in the value chain'. It is ticked, as 'Workers in the value chain' was."
+        )
+    merged = True if row[own] is True or row[workers] is True else row[own]
+    row = [merged if i == own else v for i, v in enumerate(row) if i != workers]
+    set_DFcell(
+        dfOldToMerge,
+        "cell_values",
+        make_value([row]),
+        ("name_ranges", SUSTAINABILITY_ISSUES_NR),
+    )
+
+
 def get_indexes_of_NAs(df, column) -> list[int]:
     """Get the indexes of the rows where the specified column has NA values"""
     return df.loc[df[column].isna()].index.tolist()

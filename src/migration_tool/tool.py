@@ -35,6 +35,7 @@ from .outils import (
     create_table_of_contents,
     get_NR_singlevalue,
     get_version,
+    mergeSustainabilityIssues,
     paste_values,
     report_unmigrated_NR,
     resolveAnchors,
@@ -228,6 +229,7 @@ def migrate_workbook(
     report_unmigrated_NR(df_old, df_old_tomerge, df_new, version_cell_new, c)
     if version_cell in ["1.0.0", "1.0.1"]:
         change_wastes(df_old_tomerge, mapping_wastes, c)
+    mergeSustainabilityIssues(df_old, df_old_tomerge, df_new, old_wb_obj, c)
 
     df_new_wv = df_new.merge(df_old_tomerge)
     missingNR_df_new_wv = missingNR_df_new.merge(missingNR_old_values)
