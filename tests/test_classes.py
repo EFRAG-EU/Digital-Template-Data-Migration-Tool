@@ -211,6 +211,14 @@ class TestValue:
         assert ws.cell(row=1, column=1).value == 1
         assert ws.cell(row=2, column=2).value == 4
 
+    def test_paste_leaves_formulas_alone(self):
+        ws = Workbook().active
+        ws["A2"] = "=A1*2"
+        ws["B1"] = "=A1"
+        Value([[1], [2]]).paste(ws, Shape((1, 1, 1, 2)))
+        Value([[3, 4]]).paste(ws, Shape((1, 1, 2, 1)))
+        assert [ws["A1"].value, ws["A2"].value, ws["B1"].value] == [3, "=A1*2", "=A1"]
+
     def test_paste_in_merged_cells(self):
         wb = Workbook()
         ws = wb.active

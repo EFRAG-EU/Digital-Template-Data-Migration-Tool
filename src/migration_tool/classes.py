@@ -234,19 +234,20 @@ class Value:
         del self._block[index]
 
     def paste(self, sheet: Worksheet, shape: Shape) -> None:
+        """Paste into shape, leaving the template's formula cells alone: they are never input."""
         if not shape:
             return
         if self.width() == 1:
             for row in range(shape.top(), shape.bottom() + 1):
                 cell = sheet.cell(row=row, column=shape.left())
-                if not isinstance(cell, Cell):
+                if not isinstance(cell, Cell) or check_formula(cell):
                     continue
                 cell.value = self._block[row - shape.top()][0]
         else:
             for row in range(shape.top(), shape.bottom() + 1):
                 for col in range(shape.left(), shape.right() + 1):
                     cell = sheet.cell(row=row, column=col)
-                    if not isinstance(cell, Cell):
+                    if not isinstance(cell, Cell) or check_formula(cell):
                         continue
                     cell.value = self._block[row - shape.top()][col - shape.left()]
 

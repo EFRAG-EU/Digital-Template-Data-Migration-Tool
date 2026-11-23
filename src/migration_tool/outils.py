@@ -19,7 +19,7 @@ from openpyxl.workbook.defined_name import DefinedName, DefinedNameDict
 from openpyxl.worksheet.formula import ArrayFormula
 from openpyxl.worksheet.worksheet import Worksheet
 
-from .classes import Shape, Value, check_formula, make_shape, make_value
+from .classes import CellType, Shape, Value, check_formula, make_shape, make_value
 from .data.validations import VersionCollection
 
 VERSION_NR = "template_reporting_template_version"
@@ -691,7 +691,9 @@ def paste_values(pyxl: Workbook, df, version, NR=None, table_of_contents=None):
             continue
 
         if shape.isonecell():
-            sheet[rng] = value.topleft()  # when it's one cell, paste topleft
+            # the template's formulas are never input
+            if not check_formula(cast(CellType, sheet[rng])):
+                sheet[rng] = value.topleft()  # when it's one cell, paste topleft
 
         else:
             tuple_to_check = (shape.left(), shape.top())
