@@ -343,6 +343,7 @@ class TestNullWasteValues:
                     "cell_values",
                 ]
             ),
+            access_NR_table(wb, c),
             wb,
             c,
         )

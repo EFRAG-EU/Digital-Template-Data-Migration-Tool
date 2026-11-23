@@ -35,8 +35,10 @@ from .outils import (
     create_table_of_contents,
     get_NR_singlevalue,
     get_version,
+    mergeSharedInputs,
     mergeSustainabilityIssues,
     paste_values,
+    redirectToInputs,
     report_unmigrated_NR,
     resolveAnchors,
 )
@@ -96,6 +98,15 @@ def _missing_NR() -> dict[str, dict[str, RefsJson]]:
     return json.loads(
         files("migration_tool.data")
         .joinpath("missing_NR.json")
+        .read_text(encoding="utf-8")
+    )
+
+
+@cached_copy
+def _input_NR() -> dict[str, dict[str, RefsJson]]:
+    return json.loads(
+        files("migration_tool.data")
+        .joinpath("input_NR.json")
         .read_text(encoding="utf-8")
     )
 
@@ -188,6 +199,9 @@ def migrate_workbook(
 
     df_old = access_NR_table(old_wb_obj, c, old_wb_sheet_names)
     df_new = access_NR_table(new_wb_empty, c)
+    inputs = VersionCollection().from_dict(_input_NR())
+    resolveAnchors(inputs, version_cell_new, new_wb_empty)
+    redirectToInputs(df_new, inputs, version_cell_new)
 
     # A version shares one set of refs, so resolve and read the old workbook's
     # before the new one's (the old version may be the new one).
@@ -241,7 +255,10 @@ def migrate_workbook(
         assess_energyConsumption_validation(missingNR_df_new_wv, c)
 
     if version_cell in ["1.0.0", "1.0.1", "1.1.0", "1.1.1", "1.2.0", "1.3.0"]:
-        df_new_wv = adjust_wasteValues(df_old_tomerge, df_new_wv, new_wb_empty, c)
+        df_new_wv = adjust_wasteValues(
+            df_old_tomerge, df_new_wv, df_new, new_wb_empty, c
+        )
+    df_new_wv = mergeSharedInputs(df_new_wv, c)
 
     paste_values(new_wb_empty, missingNR_df_new_wv, version_cell)
     paste_values(

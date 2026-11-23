@@ -392,15 +392,22 @@ def change_wastes(df: pd.DataFrame, mapping, c: IssuesCollector):
 
 
 def adjust_wasteValues(
-    old_df: pd.DataFrame, new_df: pd.DataFrame, new_wb: Workbook, c: IssuesCollector
+    old_df: pd.DataFrame,
+    new_df: pd.DataFrame,
+    locations: pd.DataFrame,
+    new_wb: Workbook,
+    c: IssuesCollector,
 ) -> pd.DataFrame:
+    """locations: the new template's name table, whose cells data is pasted into."""
     REUSE_RECYCLE_NR = "WasteDivertedToRecycleOrReuseMass"
     DIVERTED_NR = "WasteDirectedToDisposalMass"
     TOTMASS_NR = "WasteGeneratedMass"
 
-    # getting shape of new name range
-    sheet, rng = try_fetch_NR_refs(TOTMASS_NR, new_wb.defined_names, c)
-    shape = make_shape(rng)
+    # where the new name range's data goes
+    sheet, rng, shape = (
+        get_DFcell(locations, column, ("name_ranges", TOTMASS_NR))
+        for column in ("sheets", "cell_ranges", "cell_shapes")
+    )
 
     # calculation from previous mass of reused/recycled and diverted waste
     reuse_recycle = cast(
@@ -518,6 +525,70 @@ WORKERS_HEADERS = (
     "template_label_workers_in_the_value_chain",
     "Workers in the value chain",
 )
+
+
+def redirectToInputs(df: pd.DataFrame, inputs: VersionCollection, version: str) -> None:
+    """Point the new template's names that cover formulas mirroring an input sheet (2.0.1's B7
+    waste names on 'Technical Sheet') at those input cells, so their data is pasted where users
+    enter it. The inputs' anchors must be resolved first (see resolveAnchors)."""
+    refs = {ref.label: ref for ref in inputs.getRefs(version)}
+    if missing := sorted(set(refs) - set(df["name_ranges"])):
+        raise ValueError(f"input_NR {version}: the template has no names {missing}")
+    sheets, ranges, shapes = [], [], []
+    for name, sheet, rng, shape in zip(
+        df["name_ranges"], df["sheets"], df["cell_ranges"], df["cell_shapes"]
+    ):
+        if ref := refs.get(name):
+            inputShape = make_shape(ref.range)
+            if (shape.rows(), shape.cols()) != (inputShape.rows(), inputShape.cols()):
+                raise ValueError(
+                    f"input_NR {version}: '{name}' covers {rng} but its input {ref.range} differs in size"
+                )
+            sheet, rng, shape = ref.sheet, ref.range, inputShape
+        sheets.append(sheet)
+        ranges.append(rng)
+        shapes.append(shape)
+    df["sheets"], df["cell_ranges"], df["cell_shapes"] = sheets, ranges, shapes
+
+
+def _mergeValues(kept: Value, other: Value) -> tuple[Value, bool]:
+    """Each cell takes kept's value, else other's; and whether both held differing values."""
+    keptBlock, block = kept.values(), other.values()
+    if not block:
+        return kept, False
+    if not keptBlock:
+        return other, False
+    if [len(row) for row in keptBlock] != [len(row) for row in block]:
+        return kept, True
+    pairs = [list(zip(a, b)) for a, b in zip(keptBlock, block)]
+    conflict = any(
+        a is not None and b is not None and a != b for row in pairs for a, b in row
+    )
+    return make_value(
+        [[a if a is not None else b for a, b in row] for row in pairs]
+    ), conflict
+
+
+def mergeSharedInputs(df: pd.DataFrame, c: IssuesCollector) -> pd.DataFrame:
+    """Names sharing one input range (B7's mass and volume names share the waste table's columns)
+    are pasted once: each cell takes whichever value is there. Differing values keep the first
+    name's and are reported."""
+    names, values = list(df["name_ranges"]), list(df["cell_values"])
+    first: dict[tuple[str, str], int] = {}
+    keep: list[int] = []
+    for i, (sheet, rng) in enumerate(zip(df["sheets"], df["cell_ranges"])):
+        kept = (
+            i if pd.isna(sheet) or pd.isna(rng) else first.setdefault((sheet, rng), i)
+        )
+        if kept == i:
+            keep.append(i)
+            continue
+        values[kept], conflict = _mergeValues(values[kept], values[i])
+        if conflict:
+            c.issues.append(
+                f"'{names[kept]}' and '{names[i]}' are entered in the same cells ('{sheet}'!{rng}) in the new template and held different values; the first's were kept. Please check them."
+            )
+    return df.assign(cell_values=values).iloc[keep].reset_index(drop=True)
 
 
 def _header(value: Any) -> str | None:
