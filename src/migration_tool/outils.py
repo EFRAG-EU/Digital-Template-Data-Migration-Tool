@@ -926,6 +926,15 @@ def create_or_update_migration_status(pyxl: Workbook) -> None:
         ws["D2"].value = "=AND(TRUE,OR(FALSE,TRUE))"
 
 
+def openOnFirstSheet(wb: Workbook) -> None:
+    """Open on the first visible sheet: the blank template may be saved on another (e.g. 'Technical Sheet').
+    Only it is selected, else Excel opens with the sheets grouped."""
+    first = next(ws for ws in wb.worksheets if ws.sheet_state == "visible")
+    wb.active = first
+    for ws in wb.worksheets:
+        ws.sheet_view.tabSelected = ws is first
+
+
 def assess_energyConsumption_validation(df: pd.DataFrame, c: IssuesCollector):
     """Fuel Converter for first 3 versions does not sum from the third added fuel.
     This function checks whether a third fuel (in C12) has been added,

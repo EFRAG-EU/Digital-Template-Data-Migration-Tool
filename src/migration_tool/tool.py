@@ -37,6 +37,7 @@ from .outils import (
     get_version,
     mergeSharedInputs,
     mergeSustainabilityIssues,
+    openOnFirstSheet,
     paste_values,
     redirectToInputs,
     report_unmigrated_NR,
@@ -270,6 +271,7 @@ def migrate_workbook(
     )
 
     create_or_update_migration_status(new_wb_empty)
+    openOnFirstSheet(new_wb_empty)
 
     elapsed = time.time() - start_time
     return new_wb_empty, elapsed, c.issues
