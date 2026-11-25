@@ -16,6 +16,7 @@ from openpyxl.utils import (
     range_boundaries,
 )
 from openpyxl.workbook.defined_name import DefinedName, DefinedNameDict
+from openpyxl.worksheet.cell_range import CellRange
 from openpyxl.worksheet.formula import ArrayFormula
 from openpyxl.worksheet.worksheet import Worksheet
 
@@ -506,30 +507,28 @@ def report_unmigrated_NR(
 
     unmatched = df_old_tomerge[
         ~df_old_tomerge["name_ranges"].isin(df_new["name_ranges"])
-    ]
-    for name, value in zip(unmatched["name_ranges"], unmatched["cell_values"]):
+    ].merge(
+        df_old[["name_ranges", "sheets", "cell_ranges", "cell_shapes"]],
+        on="name_ranges",
+        how="left",
+        validate="one_to_one",
+    )
+    for nr in unmatched.to_dict("records"):
+        name, sheet, rng = nr["name_ranges"], nr["sheets"], nr["cell_ranges"]
         if name.startswith(("template_", *WASTE_NR_PREFIXES)) or name.endswith("_unit"):
             continue
-        sheet = get_DFcell(df_old, "sheets", ("name_ranges", name))
-        rng = get_DFcell(df_old, "cell_ranges", ("name_ranges", name))
         if not isinstance(sheet, str) or not isinstance(rng, str):
             continue
-        if value:
-            block = value.values() or []
-        else:
-            left, top, right, bottom = range_boundaries(rng)
-            block = oldValues[sheet].iter_rows(
-                min_row=top,
-                max_row=bottom,
-                min_col=left,
-                max_col=right,
-                values_only=True,
-            )
+        value = nr["cell_values"]
+        block = (
+            (value.values() or [])
+            if value
+            else nr["cell_shapes"].values(oldValues[sheet])
+        )
         if all(v in (None, "", "-") for row in block for v in row):
             continue
-        rng = rng.replace("$", "")
         c.issues.append(
-            f"'{name}' ({quote_sheetname(sheet)}!{rng}) has no place in the {version_new} template and was not migrated. Please re-enter it if it still applies."
+            f"'{name}' ({quote_sheetname(sheet)}!{CellRange(rng).coord}) has no place in the {version_new} template and was not migrated. Please re-enter it if it still applies."
         )
 
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Iterator
 from datetime import datetime
 from typing import TypeAlias, cast, overload
 
@@ -57,22 +58,25 @@ class Shape:
         Returns ``None`` if any cell in the range holds a formula (formula cells
         are recomputed when the new workbook is opened, so we must not copy them).
         """
-        if self.isonecell():
-            topleft = sheet.cell(row=self._top, column=self._left)
-            if check_formula(topleft):
-                return None
-            return [[cast(CellValue, topleft.value)]]
+        rows = [list(row) for row in self._iterRows(sheet)]
+        if any(check_formula(cell) for row in rows for cell in row):
+            return None
+        return [[cast(CellValue, cell.value) for cell in row] for row in rows]
 
-        list_values: Block = []
-        for row in range(self._top, self._bottom + 1):
-            row_values: list[CellValue] = []
-            for col in range(self._left, self._right + 1):
-                cell = sheet.cell(row=row, column=col)
-                if check_formula(cell):
-                    return None
-                row_values.append(cast(CellValue, cell.value))
-            list_values.append(row_values)
-        return list_values
+    def values(self, sheet: Worksheet) -> Iterator[tuple[CellValue, ...]]:
+        """The cell values inside this shape, row by row, formulas included as they are
+        (on a data_only workbook, their cached results)."""
+        return self._iterRows(sheet, valuesOnly=True)
+
+    def _iterRows(self, sheet: Worksheet, valuesOnly: bool = False) -> Iterator:
+        # iter_rows, not cell(): it is the only cheap way to read a read-only sheet
+        return sheet.iter_rows(
+            min_row=self._top,
+            max_row=self._bottom,
+            min_col=self._left,
+            max_col=self._right,
+            values_only=valuesOnly,
+        )
 
     def __bool__(self) -> bool:
         return True
@@ -96,6 +100,9 @@ class NullShape(Shape):
 
     def build_values(self, sheet: Worksheet) -> None:
         return None
+
+    def values(self, sheet: Worksheet) -> Iterator[tuple[CellValue, ...]]:
+        return iter(())
 
     def left(self) -> int:
         raise NotImplementedError("NullShape has no geometry")

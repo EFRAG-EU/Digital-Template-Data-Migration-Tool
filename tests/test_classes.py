@@ -88,6 +88,10 @@ class TestShape:
         sheet.cell(row=2, column=2).value = "=2+2"
         assert Shape((1, 1, 3, 3)).build_values(sheet) is None
 
+    def test_values_include_formulas(self, sheet):
+        sheet.cell(row=2, column=2).value = "=2+2"
+        assert list(Shape((2, 1, 3, 2)).values(sheet)) == [(12, 13), ("=2+2", 23)]
+
 
 # --- NullShape -------------------------------------------------------------
 
@@ -104,6 +108,9 @@ class TestNullShape:
 
     def test_build_values_none(self, sheet):
         assert NullShape().build_values(sheet) is None
+
+    def test_values_empty(self, sheet):
+        assert list(NullShape().values(sheet)) == []
 
     @pytest.mark.parametrize(
         "method", ["left", "top", "right", "bottom", "rows", "cols"]
