@@ -66,13 +66,18 @@ AREA_OF_SITE = "AreaOfSiteInBiodiversitySensitiveArea"
 # formulas in 1.x: reported from their cached values
 GHG_INTENSITY = "TotalLocationBasedGreenhouseGasEmissionsIntensityValue"
 PARIS_BENCHMARKS_EXCLUSION = "UndertakingsAreExcludedFromAnyEuReferenceBenchmarksThatAreAlignedWithTheParisAgreement"
+WATER_WITHDRAWN_IN_WATER_STRESS = (
+    "AmountOfWaterWithdrawnAtSitesLocatedInAreasOfHighWaterStress"
+)
 UNMIGRATED_1_0 = [
+    unmigrated(WATER_WITHDRAWN_IN_WATER_STRESS, "'Environmental Disclosures'!D170"),
     unmigrated(AREA_OF_SITE, "'Environmental Disclosures'!G128:I153"),
     *unmigratedTrainingHours(66),
     unmigrated(GHG_INTENSITY, "'Environmental Disclosures'!G68"),
     unmigrated(PARIS_BENCHMARKS_EXCLUSION, "'Governance Disclosures'!H27"),
 ]
 UNMIGRATED_1_1_0 = [
+    unmigrated(WATER_WITHDRAWN_IN_WATER_STRESS, "'Environmental Disclosures'!D170"),
     unmigrated(AREA_OF_SITE, "'Environmental Disclosures'!G128:I153"),
     *unmigratedTrainingHours(67),
     unmigrated(GHG_INTENSITY, "'Environmental Disclosures'!G68"),
@@ -91,6 +96,11 @@ UNMIGRATED_1_1_1 = [
     unmigrated("TotalSealedArea", "'Environmental Disclosures'!D295:F295"),
     unmigrated("TotalUseOfLand", "'Environmental Disclosures'!D298:F298"),
     unmigrated(PARIS_BENCHMARKS_EXCLUSION, "'Governance Disclosures'!H27"),
+]
+# the 1.1.1 samples report water withdrawn in areas of high water stress; 1.2.0 and 1.3.0 leave it empty
+UNMIGRATED_1_1_1_WATER = [
+    unmigrated(WATER_WITHDRAWN_IN_WATER_STRESS, "'Environmental Disclosures'!D304"),
+    *UNMIGRATED_1_1_1,
 ]
 
 EXPECTED_ISSUES: dict[str, list[str]] = {
@@ -136,13 +146,13 @@ EXPECTED_ISSUES: dict[str, list[str]] = {
         "The old workbook is incomplete. Migration happened only for the filled-out cells, but some data might be missing.",
         STATEMENT_OF_COMPLIANCE_ISSUE,
         SOCIAL_CHANGES_FLAG,
-        *UNMIGRATED_1_1_1,
+        *UNMIGRATED_1_1_1_WATER,
         B2_MERGED_NOTE,
     ],
     "VSME-Digital-Template-Sample-1.1.1_classifiedinfo.xlsx": [
         STATEMENT_OF_COMPLIANCE_ISSUE,
         SOCIAL_CHANGES_FLAG,
-        *UNMIGRATED_1_1_1,
+        *UNMIGRATED_1_1_1_WATER,
         B2_MERGED_NOTE,
     ],
     "VSME-Digital-Template-Sample-1.2.0.xlsx": [
