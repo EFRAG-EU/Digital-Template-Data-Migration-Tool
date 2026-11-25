@@ -40,6 +40,13 @@ class TestMigrationContract:
                 f"{migration_result.sample_path.name}"
             )
 
+    def test_opens_on_first_sheet(self, migration_result: MigrationResult):
+        wb = migration_result.workbook
+        assert wb.active is wb.worksheets[0]
+        assert [ws.sheet_view.tabSelected for ws in wb.worksheets] == [True] + [
+            False
+        ] * (len(wb.worksheets) - 1)
+
     def test_issues_is_a_list_of_strings(self, migration_result: MigrationResult):
         issues = migration_result.issues
         assert isinstance(issues, list)
