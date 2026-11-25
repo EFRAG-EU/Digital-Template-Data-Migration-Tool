@@ -8,7 +8,7 @@ from openpyxl import Workbook
 from openpyxl.utils import absolute_coordinate, quote_sheetname
 from openpyxl.workbook.defined_name import DefinedName
 
-from migration_tool.classes import NullValue, make_value
+from migration_tool.classes import NullValue, make_shape, make_value
 from migration_tool.outils import (
     access_NR_table,
     adjust_countriesOfOperation,
@@ -282,6 +282,7 @@ class TestUnmigratedNR:
                 "name_ranges": names,
                 "sheets": ["Environmental Disclosures"] * len(names),
                 "cell_ranges": ["$G$188:$I$189"] * len(names),
+                "cell_shapes": [make_shape("$G$188:$I$189")] * len(names),
             }
         )
         df_old_tomerge = pd.DataFrame(
