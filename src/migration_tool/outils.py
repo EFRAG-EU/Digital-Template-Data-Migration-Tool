@@ -16,10 +16,11 @@ from openpyxl.utils import (
     range_boundaries,
 )
 from openpyxl.workbook.defined_name import DefinedName, DefinedNameDict
+from openpyxl.worksheet.cell_range import CellRange
 from openpyxl.worksheet.formula import ArrayFormula
 from openpyxl.worksheet.worksheet import Worksheet
 
-from .classes import Shape, Value, check_formula, make_shape, make_value
+from .classes import CellType, Shape, Value, check_formula, make_shape, make_value
 from .data.validations import VersionCollection
 
 VERSION_NR = "template_reporting_template_version"
@@ -271,7 +272,7 @@ def access_missingNR_table(missingNR: VersionCollection, version: str) -> pd.Dat
     """
     Access sheets, cell references and coordinates of each missing name range.
     The json data contained in missingNR is listed by hand because certain name ranges were not present in old VSME versions.
-    The json is saved in src/migration_tool/data (see validations.py for data structure); the target version's
+    The json is saved in src/migration_tool/data (see validations.py for data structure); the version's
     anchors must be resolved first (see resolveAnchors).
     """
 
@@ -321,7 +322,7 @@ def resolveAnchors(missingNR: VersionCollection, version: str, wb: Workbook) -> 
         rows = labelRows[ref.sheet].get(anchor.label, set())
         if len(rows) != 1:
             raise MigrationError(
-                f"The target template has {len(rows)} rows labelled '{anchor.label}' in '{ref.sheet}' (for '{ref.label}'); expected exactly one."
+                f"The {version} template has {len(rows)} rows labelled '{anchor.label}' in '{ref.sheet}' (for '{ref.label}'); expected exactly one."
             )
         (labelRow,) = rows
         top = labelRow + anchor.rowOffset
@@ -392,15 +393,22 @@ def change_wastes(df: pd.DataFrame, mapping, c: IssuesCollector):
 
 
 def adjust_wasteValues(
-    old_df: pd.DataFrame, new_df: pd.DataFrame, new_wb: Workbook, c: IssuesCollector
+    old_df: pd.DataFrame,
+    new_df: pd.DataFrame,
+    locations: pd.DataFrame,
+    new_wb: Workbook,
+    c: IssuesCollector,
 ) -> pd.DataFrame:
+    """locations: the new template's name table, whose cells data is pasted into."""
     REUSE_RECYCLE_NR = "WasteDivertedToRecycleOrReuseMass"
     DIVERTED_NR = "WasteDirectedToDisposalMass"
     TOTMASS_NR = "WasteGeneratedMass"
 
-    # getting shape of new name range
-    sheet, rng = try_fetch_NR_refs(TOTMASS_NR, new_wb.defined_names, c)
-    shape = make_shape(rng)
+    # where the new name range's data goes
+    sheet, rng, shape = (
+        get_DFcell(locations, column, ("name_ranges", TOTMASS_NR))
+        for column in ("sheets", "cell_ranges", "cell_shapes")
+    )
 
     # calculation from previous mass of reused/recycled and diverted waste
     reuse_recycle = cast(
@@ -488,25 +496,187 @@ def report_unmigrated_NR(
     df_old_tomerge: pd.DataFrame,
     df_new: pd.DataFrame,
     version_new: str,
+    oldValues: Workbook,
     c: IssuesCollector,
 ) -> None:
     """Report old name ranges that hold data but have no name range in the new template.
     Merging with the new template's name ranges drops them, so without this they vanish silently.
+    Formulas (e.g. 1.x's GHG intensity) aren't copied, so their data is their cached value in
+    oldValues; "-" is the old templates' formula result for no data.
     Units (each goes with a reported value), template_ names and waste names are not reported."""
 
     unmatched = df_old_tomerge[
         ~df_old_tomerge["name_ranges"].isin(df_new["name_ranges"])
-    ]
-    for name, value in zip(unmatched["name_ranges"], unmatched["cell_values"]):
+    ].merge(
+        df_old[["name_ranges", "sheets", "cell_ranges", "cell_shapes"]],
+        on="name_ranges",
+        how="left",
+        validate="one_to_one",
+    )
+    for nr in unmatched.to_dict("records"):
+        name, sheet, rng = nr["name_ranges"], nr["sheets"], nr["cell_ranges"]
         if name.startswith(("template_", *WASTE_NR_PREFIXES)) or name.endswith("_unit"):
             continue
-        if all(v in (None, "") for row in value.values() or [] for v in row):
+        if not isinstance(sheet, str) or not isinstance(rng, str):
             continue
-        sheet = get_DFcell(df_old, "sheets", ("name_ranges", name))
-        rng = get_DFcell(df_old, "cell_ranges", ("name_ranges", name)).replace("$", "")
-        c.issues.append(
-            f"'{name}' ({quote_sheetname(sheet)}!{rng}) has no place in the {version_new} template and was not migrated. Please re-enter it if it still applies."
+        value = nr["cell_values"]
+        block = (
+            (value.values() or [])
+            if value
+            else nr["cell_shapes"].values(oldValues[sheet])
         )
+        if all(v in (None, "", "-") for row in block for v in row):
+            continue
+        c.issues.append(
+            f"'{name}' ({quote_sheetname(sheet)}!{CellRange(rng).coord}) has no place in the {version_new} template and was not migrated. Please re-enter it if it still applies."
+        )
+
+
+SUSTAINABILITY_ISSUES_NR = (
+    "SustainabilityIssueAddressedByPracticePolicyAndOrFutureInitiative"
+)
+# B2's column headers: template labels from 1.1.0, plain English before
+OWN_WORKFORCE_HEADERS = ("template_label_own_workforce", "Own workforce")
+WORKERS_HEADERS = (
+    "template_label_workers_in_the_value_chain",
+    "Workers in the value chain",
+)
+
+
+def redirectToInputs(df: pd.DataFrame, inputs: VersionCollection, version: str) -> None:
+    """Point the new template's names that cover formulas mirroring an input sheet (2.0.1's B7
+    waste names on 'Technical Sheet') at those input cells, so their data is pasted where users
+    enter it. The inputs' anchors must be resolved first (see resolveAnchors)."""
+    refs = {ref.label: ref for ref in inputs.getRefs(version)}
+    if missing := sorted(set(refs) - set(df["name_ranges"])):
+        raise ValueError(f"input_NR {version}: the template has no names {missing}")
+    sheets, ranges, shapes = [], [], []
+    for name, sheet, rng, shape in zip(
+        df["name_ranges"], df["sheets"], df["cell_ranges"], df["cell_shapes"]
+    ):
+        if ref := refs.get(name):
+            inputShape = make_shape(ref.range)
+            if (shape.rows(), shape.cols()) != (inputShape.rows(), inputShape.cols()):
+                raise ValueError(
+                    f"input_NR {version}: '{name}' covers {rng} but its input {ref.range} differs in size"
+                )
+            sheet, rng, shape = ref.sheet, ref.range, inputShape
+        sheets.append(sheet)
+        ranges.append(rng)
+        shapes.append(shape)
+    df["sheets"], df["cell_ranges"], df["cell_shapes"] = sheets, ranges, shapes
+
+
+def _mergeValues(kept: Value, other: Value) -> tuple[Value, bool]:
+    """Each cell takes kept's value, else other's; and whether both held differing values."""
+    keptBlock, block = kept.values(), other.values()
+    if not block:
+        return kept, False
+    if not keptBlock:
+        return other, False
+    if [len(row) for row in keptBlock] != [len(row) for row in block]:
+        return kept, True
+    pairs = [list(zip(a, b)) for a, b in zip(keptBlock, block)]
+    conflict = any(
+        a is not None and b is not None and a != b for row in pairs for a, b in row
+    )
+    return make_value(
+        [[a if a is not None else b for a, b in row] for row in pairs]
+    ), conflict
+
+
+def mergeSharedInputs(df: pd.DataFrame, c: IssuesCollector) -> pd.DataFrame:
+    """Names sharing one input range (B7's mass and volume names share the waste table's columns)
+    are pasted once: each cell takes whichever value is there. Differing values keep the first
+    name's and are reported."""
+    names, values = list(df["name_ranges"]), list(df["cell_values"])
+    first: dict[tuple[str, str], int] = {}
+    keep: list[int] = []
+    for i, (sheet, rng) in enumerate(zip(df["sheets"], df["cell_ranges"])):
+        kept = (
+            i if pd.isna(sheet) or pd.isna(rng) else first.setdefault((sheet, rng), i)
+        )
+        if kept == i:
+            keep.append(i)
+            continue
+        values[kept], conflict = _mergeValues(values[kept], values[i])
+        if conflict:
+            c.issues.append(
+                f"'{names[kept]}' and '{names[i]}' are entered in the same cells ('{sheet}'!{rng}) in the new template and held different values; the first's were kept. Please check them."
+            )
+    return df.assign(cell_values=values).iloc[keep].reset_index(drop=True)
+
+
+def _header(value: Any) -> str | None:
+    text = value.text if isinstance(value, ArrayFormula) else value
+    if not isinstance(text, str):
+        return None
+    match = TEMPLATE_LABEL.fullmatch(text)
+    return match.group(1) if match else text.strip()
+
+
+def mergeSustainabilityIssues(
+    dfOld: pd.DataFrame,
+    dfOldToMerge: pd.DataFrame,
+    dfNew: pd.DataFrame,
+    oldWb: Workbook,
+    c: IssuesCollector,
+) -> None:
+    """VS 2.0.1 merges B2's 'Own workforce' and 'Workers in the value chain' tick boxes into one.
+    The old columns are found by their headers, never by position: either ticked ticks the merged
+    box. If they can't be found B2 is left empty, as a shifted row would tick the wrong issues."""
+
+    if not (dfOldToMerge["name_ranges"] == SUSTAINABILITY_ISSUES_NR).any():
+        return
+    value = cast(
+        Value,
+        get_DFcell(
+            dfOldToMerge, "cell_values", ("name_ranges", SUSTAINABILITY_ISSUES_NR)
+        ),
+    )
+    shape = cast(
+        Shape,
+        get_DFcell(dfNew, "cell_shapes", ("name_ranges", SUSTAINABILITY_ISSUES_NR)),
+    )
+    if not value or not shape or value.height() != 1 or value.width() <= shape.cols():
+        return
+
+    sheet = get_DFcell(dfOld, "sheets", ("name_ranges", SUSTAINABILITY_ISSUES_NR))
+    old = cast(
+        Shape,
+        get_DFcell(dfOld, "cell_shapes", ("name_ranges", SUSTAINABILITY_ISSUES_NR)),
+    )
+    headers = [
+        _header(oldWb[sheet].cell(old.top() - 1, col).value)
+        for col in range(old.left(), old.right() + 1)
+    ]
+    own = next((i for i, h in enumerate(headers) if h in OWN_WORKFORCE_HEADERS), None)
+    workers = next((i for i, h in enumerate(headers) if h in WORKERS_HEADERS), None)
+    if own is None or workers is None or value.width() - 1 != shape.cols():
+        set_DFcell(
+            dfOldToMerge,
+            "cell_values",
+            make_value(None),
+            ("name_ranges", SUSTAINABILITY_ISSUES_NR),
+        )
+        c.issues.append(
+            "The sustainability issues addressed by practices, policies and future initiatives (B2) could not be migrated, as the new template merges 'Own workforce' and 'Workers in the value chain'. Please tick them again in 'General Information'."
+        )
+        return
+
+    row = value.values()[0]  # type: ignore[index]
+    if row[workers] is True:
+        c.issues.append(
+            "B2's 'Own workforce' and 'Workers in the value chain' are one sustainability issue in the new template, 'Own workforce and Workers in the value chain'. It is ticked, as 'Workers in the value chain' was."
+        )
+    merged = True if row[own] is True or row[workers] is True else row[own]
+    row = [merged if i == own else v for i, v in enumerate(row) if i != workers]
+    set_DFcell(
+        dfOldToMerge,
+        "cell_values",
+        make_value([row]),
+        ("name_ranges", SUSTAINABILITY_ISSUES_NR),
+    )
 
 
 def get_indexes_of_NAs(df, column) -> list[int]:
@@ -608,7 +778,9 @@ def paste_values(pyxl: Workbook, df, version, NR=None, table_of_contents=None):
             continue
 
         if shape.isonecell():
-            sheet[rng] = value.topleft()  # when it's one cell, paste topleft
+            # the template's formulas are never input
+            if not check_formula(cast(CellType, sheet[rng])):
+                sheet[rng] = value.topleft()  # when it's one cell, paste topleft
 
         else:
             tuple_to_check = (shape.left(), shape.top())
@@ -768,6 +940,15 @@ def create_or_update_migration_status(pyxl: Workbook) -> None:
         ws["D1"].value = "Migration status"
         ws["D1"].alignment = Alignment(horizontal="center")
         ws["D2"].value = "=AND(TRUE,OR(FALSE,TRUE))"
+
+
+def openOnFirstSheet(wb: Workbook) -> None:
+    """Open on the first visible sheet: the blank template may be saved on another (e.g. 'Technical Sheet').
+    Only it is selected, else Excel opens with the sheets grouped."""
+    first = next(ws for ws in wb.worksheets if ws.sheet_state == "visible")
+    wb.active = first
+    for ws in wb.worksheets:
+        ws.sheet_view.tabSelected = ws is first
 
 
 def assess_energyConsumption_validation(df: pd.DataFrame, c: IssuesCollector):

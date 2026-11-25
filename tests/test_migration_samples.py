@@ -40,6 +40,13 @@ class TestMigrationContract:
                 f"{migration_result.sample_path.name}"
             )
 
+    def test_opens_on_first_sheet(self, migration_result: MigrationResult):
+        wb = migration_result.workbook
+        assert wb.active is wb.worksheets[0]
+        assert [ws.sheet_view.tabSelected for ws in wb.worksheets] == [True] + [
+            False
+        ] * (len(wb.worksheets) - 1)
+
     def test_issues_is_a_list_of_strings(self, migration_result: MigrationResult):
         issues = migration_result.issues
         assert isinstance(issues, list)
@@ -93,17 +100,37 @@ def _columnValues(wb: Workbook, name: str) -> list:
     return [cell.value for (cell,) in wb[sheet][rng] if cell.value is not None]
 
 
+def _cellValue(wb: Workbook, name: str):
+    ((sheet, ref),) = wb.defined_names[name].destinations
+    return wb[sheet][ref].value
+
+
+SITE_IDS_VSME = "IdentifierOfSitesInBiodiversitySensitiveAreasTypedAxis"
+SITE_IDS_VS = "IdentifierOfSiteTypedAxis_SitesInBiodiversitySensitiveAreasTable"
+WATER_CONSUMED_IN_WATER_STRESS = (
+    "AmountOfWaterConsumedAtSitesLocatedInAreasWithWaterStress"
+)
+
+
 class TestCarriedValues:
     def test_biodiversity_site_ids_are_carried(self, migration_result: MigrationResult):
         old = load_workbook_quietly(migration_result.sample_path, data_only=False)
-        oldIds = _columnValues(
-            old, "IdentifierOfSitesInBiodiversitySensitiveAreasTypedAxis"
-        )
+        oldName = SITE_IDS_VS if SITE_IDS_VS in old.defined_names else SITE_IDS_VSME
+        oldIds = _columnValues(old, oldName)
         assert oldIds
+        assert _columnValues(migration_result.workbook, SITE_IDS_VS) == oldIds
+
+    def test_water_consumed_in_water_stress_is_not_old_water_withdrawn(
+        self, migration_result: MigrationResult
+    ):
+        """1.x reported water *withdrawn* in areas of high water stress: a different quantity."""
+        old = load_workbook_quietly(migration_result.sample_path, data_only=False)
+        oldConsumed = (
+            _cellValue(old, WATER_CONSUMED_IN_WATER_STRESS)
+            if WATER_CONSUMED_IN_WATER_STRESS in old.defined_names
+            else None
+        )
         assert (
-            _columnValues(
-                migration_result.workbook,
-                "IdentifierOfSiteTypedAxis_SitesInBiodiversitySensitiveAreasTable",
-            )
-            == oldIds
+            _cellValue(migration_result.workbook, WATER_CONSUMED_IN_WATER_STRESS)
+            == oldConsumed
         )

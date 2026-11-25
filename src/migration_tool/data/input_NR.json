@@ -1,0 +1,14 @@
+{
+  "2.0.1": {
+    "TypeOfWasteAxis": {"sheet": "Environmental Disclosures", "anchor": {"label": "template_label_type_of_waste", "cols": "D:F", "rows": 100, "rowOffset": 1}},
+    "WasteGeneratedMass_unit": {"sheet": "Environmental Disclosures", "anchor": {"label": "template_label_type_of_waste", "cols": "G:I", "rows": 100, "rowOffset": 1}},
+    "WasteGeneratedVolume_unit": {"sheet": "Environmental Disclosures", "anchor": {"label": "template_label_type_of_waste", "cols": "G:I", "rows": 100, "rowOffset": 1}},
+    "WasteGeneratedMass": {"sheet": "Environmental Disclosures", "anchor": {"label": "template_label_type_of_waste", "cols": "J", "rows": 100, "rowOffset": 1}},
+    "WasteGeneratedVolume": {"sheet": "Environmental Disclosures", "anchor": {"label": "template_label_type_of_waste", "cols": "J", "rows": 100, "rowOffset": 1}},
+    "PercentageOfWasteDivertedToRecyclingMass": {"sheet": "Environmental Disclosures", "anchor": {"label": "template_label_type_of_waste", "cols": "K", "rows": 100, "rowOffset": 1}},
+    "PercentageOfWasteDivertedToRecyclingVolume": {"sheet": "Environmental Disclosures", "anchor": {"label": "template_label_type_of_waste", "cols": "K", "rows": 100, "rowOffset": 1}},
+    "PercentageOfWasteDivertedToPreparationForReuseMass": {"sheet": "Environmental Disclosures", "anchor": {"label": "template_label_type_of_waste", "cols": "L", "rows": 100, "rowOffset": 1}},
+    "PercentageOfWasteDivertedToPreparationForReuseVolume": {"sheet": "Environmental Disclosures", "anchor": {"label": "template_label_type_of_waste", "cols": "L", "rows": 100, "rowOffset": 1}},
+    "TotalHazardousWasteGeneratedMass_unit": {"sheet": "Environmental Disclosures", "anchor": {"label": "template_label_total_hazardous_waste_generated_mass", "cols": "G:I"}}
+  }
+}

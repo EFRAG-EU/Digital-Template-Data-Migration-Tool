@@ -18,6 +18,7 @@ if str(SRC_DIR) not in sys.path:
 
 from openpyxl import Workbook
 
+from migration_tool import migration_target
 from migration_tool.tool import migrate_workbook
 
 SAMPLES_DIR = REPO_ROOT / "tests" / "templates_samples"
@@ -38,10 +39,11 @@ XFAIL_SAMPLES: dict[str, str] = {
 # ---------------------------------------------------------------------------
 STATEMENT_OF_COMPLIANCE_ISSUE = "New Template requires explicit statement of compliance (see 'General Information' for more)."
 SOCIAL_CHANGES_FLAG = "New required information in the 'Social Disclosures' sheet (see cell-level comments for more)."
+B2_MERGED_NOTE = "B2's 'Own workforce' and 'Workers in the value chain' are one sustainability issue in the new template, 'Own workforce and Workers in the value chain'. It is ticked, as 'Workers in the value chain' was."
 
 
 def unmigrated(name: str, ref: str) -> str:
-    return f"'{name}' ({ref}) has no place in the 2.0.0 template and was not migrated. Please re-enter it if it still applies."
+    return f"'{name}' ({ref}) has no place in the {migration_target().target_template_version} template and was not migrated. Please re-enter it if it still applies."
 
 
 def unmigratedTrainingHours(male: int) -> list[str]:
@@ -61,17 +63,30 @@ def unmigratedTrainingHours(male: int) -> list[str]:
 
 
 AREA_OF_SITE = "AreaOfSiteInBiodiversitySensitiveArea"
+# formulas in 1.x: reported from their cached values
+GHG_INTENSITY = "TotalLocationBasedGreenhouseGasEmissionsIntensityValue"
+PARIS_BENCHMARKS_EXCLUSION = "UndertakingsAreExcludedFromAnyEuReferenceBenchmarksThatAreAlignedWithTheParisAgreement"
+WATER_WITHDRAWN_IN_WATER_STRESS = (
+    "AmountOfWaterWithdrawnAtSitesLocatedInAreasOfHighWaterStress"
+)
 UNMIGRATED_1_0 = [
+    unmigrated(WATER_WITHDRAWN_IN_WATER_STRESS, "'Environmental Disclosures'!D170"),
     unmigrated(AREA_OF_SITE, "'Environmental Disclosures'!G128:I153"),
     *unmigratedTrainingHours(66),
+    unmigrated(GHG_INTENSITY, "'Environmental Disclosures'!G68"),
+    unmigrated(PARIS_BENCHMARKS_EXCLUSION, "'Governance Disclosures'!H27"),
 ]
 UNMIGRATED_1_1_0 = [
+    unmigrated(WATER_WITHDRAWN_IN_WATER_STRESS, "'Environmental Disclosures'!D170"),
     unmigrated(AREA_OF_SITE, "'Environmental Disclosures'!G128:I153"),
     *unmigratedTrainingHours(67),
+    unmigrated(GHG_INTENSITY, "'Environmental Disclosures'!G68"),
+    unmigrated(PARIS_BENCHMARKS_EXCLUSION, "'Governance Disclosures'!H27"),
 ]
 UNMIGRATED_1_1_1 = [
     unmigrated(AREA_OF_SITE, "'Environmental Disclosures'!G188:I287"),
     *unmigratedTrainingHours(157),
+    unmigrated(GHG_INTENSITY, "'Environmental Disclosures'!G68"),
     unmigrated(
         "TotalNatureOrientedAreaOffSite", "'Environmental Disclosures'!D297:F297"
     ),
@@ -80,6 +95,12 @@ UNMIGRATED_1_1_1 = [
     ),
     unmigrated("TotalSealedArea", "'Environmental Disclosures'!D295:F295"),
     unmigrated("TotalUseOfLand", "'Environmental Disclosures'!D298:F298"),
+    unmigrated(PARIS_BENCHMARKS_EXCLUSION, "'Governance Disclosures'!H27"),
+]
+# the 1.1.1 samples report water withdrawn in areas of high water stress; 1.2.0 and 1.3.0 leave it empty
+UNMIGRATED_1_1_1_WATER = [
+    unmigrated(WATER_WITHDRAWN_IN_WATER_STRESS, "'Environmental Disclosures'!D304"),
+    *UNMIGRATED_1_1_1,
 ]
 
 EXPECTED_ISSUES: dict[str, list[str]] = {
@@ -89,12 +110,14 @@ EXPECTED_ISSUES: dict[str, list[str]] = {
         *UNMIGRATED_1_0,
         "Waste category '101102 Non-Hazardous Waste - Waste glass' not present in new Regulation. Please, see https://eur-lex.europa.eu/legal-content/EN/TXT/PDF/?uri=CELEX:32014D0955",
         "Waste category '040201 Non-Hazardous Waste - Waste from unprocessed textile fibres and other natural fibrous substances mainly of vegetable origin' not present in new Regulation. Please, see https://eur-lex.europa.eu/legal-content/EN/TXT/PDF/?uri=CELEX:32014D0955",
+        B2_MERGED_NOTE,
         "Issues in Energy Consumption sums. Please check the Environmental Disclosures and the Fuel Converter sheets.",
     ],
     "VSME-Digital-Template-Sample-1.0.0_withoutdate.xlsx": [
         STATEMENT_OF_COMPLIANCE_ISSUE,
         SOCIAL_CHANGES_FLAG,
         *UNMIGRATED_1_0,
+        B2_MERGED_NOTE,
         "Issues in Energy Consumption sums. Please check the Environmental Disclosures and the Fuel Converter sheets.",
     ],
     "VSME-Digital-Template-Sample-1.0.1.xlsx": [
@@ -103,29 +126,34 @@ EXPECTED_ISSUES: dict[str, list[str]] = {
         *UNMIGRATED_1_0,
         "Waste category '101102 Non-Hazardous Waste - Waste glass' not present in new Regulation. Please, see https://eur-lex.europa.eu/legal-content/EN/TXT/PDF/?uri=CELEX:32014D0955",
         "Waste category '040201 Non-Hazardous Waste - Waste from unprocessed textile fibres and other natural fibrous substances mainly of vegetable origin' not present in new Regulation. Please, see https://eur-lex.europa.eu/legal-content/EN/TXT/PDF/?uri=CELEX:32014D0955",
+        B2_MERGED_NOTE,
     ],
     "VSME-Digital-Template-Sample-1.0.1_notcomplete.xlsx": [
         "The old workbook is incomplete. Migration happened only for the filled-out cells, but some data might be missing.",
         STATEMENT_OF_COMPLIANCE_ISSUE,
         SOCIAL_CHANGES_FLAG,
         *UNMIGRATED_1_0,
+        B2_MERGED_NOTE,
     ],
     "VSME-Digital-Template-Sample-1.1.0.xlsx": [
         "Name range 'MostSeniorLevelAccountableForImplementationOfPracticesPoliciesAndOrFutureInitiatives' refers to sheet '[1]General Information' which is not present in the old workbook. This name range has been ignored in the migration.",
         STATEMENT_OF_COMPLIANCE_ISSUE,
         SOCIAL_CHANGES_FLAG,
         *UNMIGRATED_1_1_0,
+        B2_MERGED_NOTE,
     ],
     "VSME-Digital-Template-Sample-1.1.1.xlsx": [
         "The old workbook is incomplete. Migration happened only for the filled-out cells, but some data might be missing.",
         STATEMENT_OF_COMPLIANCE_ISSUE,
         SOCIAL_CHANGES_FLAG,
-        *UNMIGRATED_1_1_1,
+        *UNMIGRATED_1_1_1_WATER,
+        B2_MERGED_NOTE,
     ],
     "VSME-Digital-Template-Sample-1.1.1_classifiedinfo.xlsx": [
         STATEMENT_OF_COMPLIANCE_ISSUE,
         SOCIAL_CHANGES_FLAG,
-        *UNMIGRATED_1_1_1,
+        *UNMIGRATED_1_1_1_WATER,
+        B2_MERGED_NOTE,
     ],
     "VSME-Digital-Template-Sample-1.2.0.xlsx": [
         "Name range 'DescriptionOfATargetRelatedToAPolicy' has 0 destinations (expected 1; value: '\"(=\\'General Information\\'!$E$520;=\\'General Information\\'!$E$530)\"'). This name range has been ignored in the migration.",

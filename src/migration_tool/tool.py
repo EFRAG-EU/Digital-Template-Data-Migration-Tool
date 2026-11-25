@@ -35,13 +35,17 @@ from .outils import (
     create_table_of_contents,
     get_NR_singlevalue,
     get_version,
+    mergeSharedInputs,
+    mergeSustainabilityIssues,
+    openOnFirstSheet,
     paste_values,
+    redirectToInputs,
     report_unmigrated_NR,
     resolveAnchors,
 )
 
 FilePathOrBinaryBlob: TypeAlias = str | Path | io.BufferedIOBase
-NEW_TEMPLATE_NAME = "VS-Digital-Template-2.0.0.xlsx"
+NEW_TEMPLATE_NAME = "VS-Digital-Template-2.0.1.xlsx"
 STATUS_NR = "template_overall_validation_status"
 ENTRY_POINT_NR = "template_reporting_schemaRef"
 
@@ -95,6 +99,15 @@ def _missing_NR() -> dict[str, dict[str, RefsJson]]:
     return json.loads(
         files("migration_tool.data")
         .joinpath("missing_NR.json")
+        .read_text(encoding="utf-8")
+    )
+
+
+@cached_copy
+def _input_NR() -> dict[str, dict[str, RefsJson]]:
+    return json.loads(
+        files("migration_tool.data")
+        .joinpath("input_NR.json")
         .read_text(encoding="utf-8")
     )
 
@@ -187,9 +200,15 @@ def migrate_workbook(
 
     df_old = access_NR_table(old_wb_obj, c, old_wb_sheet_names)
     df_new = access_NR_table(new_wb_empty, c)
+    inputs = VersionCollection().from_dict(_input_NR())
+    resolveAnchors(inputs, version_cell_new, new_wb_empty)
+    redirectToInputs(df_new, inputs, version_cell_new)
 
-    resolveAnchors(missingNR, version_cell_new, new_wb_empty)
+    # A version shares one set of refs, so resolve and read the old workbook's
+    # before the new one's (the old version may be the new one).
+    resolveAnchors(missingNR, version_cell, old_wb_obj)
     missingNR_df_old = access_missingNR_table(missingNR, version_cell)
+    resolveAnchors(missingNR, version_cell_new, new_wb_empty)
     missingNR_df_new = access_missingNR_table(missingNR, version_cell_new)
 
     df_old_wv = copy_values(old_wb_obj, df_old, NRflag=True)
@@ -199,9 +218,9 @@ def migrate_workbook(
     convert_months(missingNR_old_values, version_cell, DATES)
 
     # Read the old workbook's cached computed values once (read-only): the ToC
-    # status cell is a formula. (Classified-information choices need no cached
-    # values: before 1.2.0 they are a plain list, and from 1.2.0 they are the ToC
-    # checkboxes themselves, carried over by the "*_ToC" name ranges.)
+    # status cell is a formula, and so are some unmigrated names. (Classified-information
+    # choices need no cached values: before 1.2.0 they are a plain list, and from 1.2.0
+    # they are the ToC checkboxes themselves, carried over by the "*_ToC" name ranges.)
     with _open_cached_values(old_wb) as old_values:
         incomplete = check_status_incomplete(old_values, STATUS_NR, c)
         if version_cell in ["1.0.0", "1.0.1", "1.1.0", "1.1.1", "1.2.0", "1.3.0"]:
@@ -212,19 +231,23 @@ def migrate_workbook(
                 old_values, new_wb_empty, missingNR_df_new, version_cell, c
             )
 
+        df_old_tomerge = apply_changes_NR(
+            df_old_wv, version_cell, version_cell_new, _NR_changes()
+        )
+        df_old_tomerge = clean_NR_with_no_data(df_old_tomerge)
+        report_unmigrated_NR(
+            df_old, df_old_tomerge, df_new, version_cell_new, old_values, c
+        )
+
     # "Incomplete" message first
     if incomplete:
         c.append_first(
             "The old workbook is incomplete. Migration happened only for the filled-out cells, but some data might be missing."
         )
 
-    df_old_tomerge = apply_changes_NR(
-        df_old_wv, version_cell, version_cell_new, _NR_changes()
-    )
-    df_old_tomerge = clean_NR_with_no_data(df_old_tomerge)
-    report_unmigrated_NR(df_old, df_old_tomerge, df_new, version_cell_new, c)
     if version_cell in ["1.0.0", "1.0.1"]:
         change_wastes(df_old_tomerge, mapping_wastes, c)
+    mergeSustainabilityIssues(df_old, df_old_tomerge, df_new, old_wb_obj, c)
 
     df_new_wv = df_new.merge(df_old_tomerge)
     missingNR_df_new_wv = missingNR_df_new.merge(missingNR_old_values)
@@ -236,7 +259,10 @@ def migrate_workbook(
         assess_energyConsumption_validation(missingNR_df_new_wv, c)
 
     if version_cell in ["1.0.0", "1.0.1", "1.1.0", "1.1.1", "1.2.0", "1.3.0"]:
-        df_new_wv = adjust_wasteValues(df_old_tomerge, df_new_wv, new_wb_empty, c)
+        df_new_wv = adjust_wasteValues(
+            df_old_tomerge, df_new_wv, df_new, new_wb_empty, c
+        )
+    df_new_wv = mergeSharedInputs(df_new_wv, c)
 
     paste_values(new_wb_empty, missingNR_df_new_wv, version_cell)
     paste_values(
@@ -248,6 +274,7 @@ def migrate_workbook(
     )
 
     create_or_update_migration_status(new_wb_empty)
+    openOnFirstSheet(new_wb_empty)
 
     elapsed = time.time() - start_time
     return new_wb_empty, elapsed, c.issues
