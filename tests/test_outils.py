@@ -266,8 +266,17 @@ class TestUnmigratedNR:
     """Old names holding data with no name in the new template are reported, not dropped silently."""
 
     @staticmethod
-    def _report(oldValues: dict[str, list[list]]) -> list[str]:
+    def _report(
+        oldValues: dict[str, list[list] | None], cached: list[list] | None = None
+    ) -> list[str]:
+        """cached: Excel's cached values of G188:I189, for the names that are formulas (None)."""
         names = list(oldValues)
+        cachedValues = Workbook()
+        ws = cachedValues.active
+        ws.title = "Environmental Disclosures"
+        for row, rowValues in enumerate(cached or [], start=188):
+            for col, value in enumerate(rowValues, start=7):  # G
+                ws.cell(row, col, value)
         df_old = pd.DataFrame(
             {
                 "name_ranges": names,
@@ -283,7 +292,7 @@ class TestUnmigratedNR:
         )
         df_new = pd.DataFrame({"name_ranges": ["Kept"]})
         c = IssuesCollector()
-        report_unmigrated_NR(df_old, df_old_tomerge, df_new, "2.0.0", c)
+        report_unmigrated_NR(df_old, df_old_tomerge, df_new, "2.0.0", cachedValues, c)
         return c.issues
 
     def test_name_with_data_is_reported(self):
@@ -293,6 +302,14 @@ class TestUnmigratedNR:
 
     def test_empty_name_and_formula_are_not_reported(self):
         assert self._report({"Empty": [[None], [""]], "Formula": None}) == []
+
+    def test_formula_with_a_cached_value_is_reported(self):
+        assert self._report({"Intensity": None}, cached=[[None], ["-", 0.0036]]) == [
+            "'Intensity' ('Environmental Disclosures'!G188:I189) has no place in the 2.0.0 template and was not migrated. Please re-enter it if it still applies."
+        ]
+
+    def test_formula_with_no_data_is_not_reported(self):
+        assert self._report({"Intensity": None}, cached=[["-"], ["", "-"]]) == []
 
     def test_names_in_the_new_template_are_not_reported(self):
         assert self._report({"Kept": [[1]]}) == []

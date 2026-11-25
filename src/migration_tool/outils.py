@@ -495,10 +495,13 @@ def report_unmigrated_NR(
     df_old_tomerge: pd.DataFrame,
     df_new: pd.DataFrame,
     version_new: str,
+    oldValues: Workbook,
     c: IssuesCollector,
 ) -> None:
     """Report old name ranges that hold data but have no name range in the new template.
     Merging with the new template's name ranges drops them, so without this they vanish silently.
+    Formulas (e.g. 1.x's GHG intensity) aren't copied, so their data is their cached value in
+    oldValues; "-" is the old templates' formula result for no data.
     Units (each goes with a reported value), template_ names and waste names are not reported."""
 
     unmatched = df_old_tomerge[
@@ -507,10 +510,24 @@ def report_unmigrated_NR(
     for name, value in zip(unmatched["name_ranges"], unmatched["cell_values"]):
         if name.startswith(("template_", *WASTE_NR_PREFIXES)) or name.endswith("_unit"):
             continue
-        if all(v in (None, "") for row in value.values() or [] for v in row):
-            continue
         sheet = get_DFcell(df_old, "sheets", ("name_ranges", name))
-        rng = get_DFcell(df_old, "cell_ranges", ("name_ranges", name)).replace("$", "")
+        rng = get_DFcell(df_old, "cell_ranges", ("name_ranges", name))
+        if not isinstance(sheet, str) or not isinstance(rng, str):
+            continue
+        if value:
+            block = value.values() or []
+        else:
+            left, top, right, bottom = range_boundaries(rng)
+            block = oldValues[sheet].iter_rows(
+                min_row=top,
+                max_row=bottom,
+                min_col=left,
+                max_col=right,
+                values_only=True,
+            )
+        if all(v in (None, "", "-") for row in block for v in row):
+            continue
+        rng = rng.replace("$", "")
         c.issues.append(
             f"'{name}' ({quote_sheetname(sheet)}!{rng}) has no place in the {version_new} template and was not migrated. Please re-enter it if it still applies."
         )

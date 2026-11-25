@@ -63,17 +63,25 @@ def unmigratedTrainingHours(male: int) -> list[str]:
 
 
 AREA_OF_SITE = "AreaOfSiteInBiodiversitySensitiveArea"
+# formulas in 1.x: reported from their cached values
+GHG_INTENSITY = "TotalLocationBasedGreenhouseGasEmissionsIntensityValue"
+PARIS_BENCHMARKS_EXCLUSION = "UndertakingsAreExcludedFromAnyEuReferenceBenchmarksThatAreAlignedWithTheParisAgreement"
 UNMIGRATED_1_0 = [
     unmigrated(AREA_OF_SITE, "'Environmental Disclosures'!G128:I153"),
     *unmigratedTrainingHours(66),
+    unmigrated(GHG_INTENSITY, "'Environmental Disclosures'!G68"),
+    unmigrated(PARIS_BENCHMARKS_EXCLUSION, "'Governance Disclosures'!H27"),
 ]
 UNMIGRATED_1_1_0 = [
     unmigrated(AREA_OF_SITE, "'Environmental Disclosures'!G128:I153"),
     *unmigratedTrainingHours(67),
+    unmigrated(GHG_INTENSITY, "'Environmental Disclosures'!G68"),
+    unmigrated(PARIS_BENCHMARKS_EXCLUSION, "'Governance Disclosures'!H27"),
 ]
 UNMIGRATED_1_1_1 = [
     unmigrated(AREA_OF_SITE, "'Environmental Disclosures'!G188:I287"),
     *unmigratedTrainingHours(157),
+    unmigrated(GHG_INTENSITY, "'Environmental Disclosures'!G68"),
     unmigrated(
         "TotalNatureOrientedAreaOffSite", "'Environmental Disclosures'!D297:F297"
     ),
@@ -82,6 +90,7 @@ UNMIGRATED_1_1_1 = [
     ),
     unmigrated("TotalSealedArea", "'Environmental Disclosures'!D295:F295"),
     unmigrated("TotalUseOfLand", "'Environmental Disclosures'!D298:F298"),
+    unmigrated(PARIS_BENCHMARKS_EXCLUSION, "'Governance Disclosures'!H27"),
 ]
 
 EXPECTED_ISSUES: dict[str, list[str]] = {
